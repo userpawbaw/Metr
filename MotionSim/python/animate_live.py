@@ -46,6 +46,10 @@ def main():
     ap.add_argument("--bin", default="../sim/motion_sim")
     ap.add_argument("--decim", type=int, default=100)
     ap.add_argument("--fps", type=int, default=30)
+    ap.add_argument("--realtime", action="store_true",
+                    help="pace the C sim to wall-clock time (true real-time)")
+    ap.add_argument("--speed", type=float, default=1.0,
+                    help="real-time multiplier (e.g. 2 = twice as fast)")
     ap.add_argument("--maxpts", type=int, default=2500)
     ap.add_argument("--frames", type=int, default=300,
                     help="number of frames when --save is used")
@@ -60,6 +64,9 @@ def main():
 
     # ---- launch the C simulator in stream mode ----
     cmd = [args.bin, args.scenario, "--stream", "--decim", str(args.decim)]
+    # Real-time pacing would make a file render wait the full run; skip on --save.
+    if args.realtime and not args.save:
+        cmd += ["--realtime", "--speed", str(args.speed)]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True, bufsize=1)
     header = proc.stdout.readline().strip().split(",")
     col = {name: i for i, name in enumerate(header)}

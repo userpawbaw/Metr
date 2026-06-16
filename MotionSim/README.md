@@ -152,6 +152,31 @@ text to stderr, so it composes with any consumer:
 After changing `dsp/interrupt.c` / `dsp/main.c`, just re-run any of the above;
 no other steps are needed.
 
+### True real-time playback
+
+By default the C sim runs as fast as possible. `--realtime` paces the *emitted
+rows* to wall-clock time using the simulated timestamp (`time_us`), so 1 s of
+simulated motion takes 1 s of real time; `--speed X` scales that (x2 = twice as
+fast). Pacing happens at the C producer, so any consumer of the stream sees
+real-time data.
+
+```sh
+./sim/motion_sim curve --stream --realtime            # x1 real time
+./sim/motion_sim curve --stream --realtime --speed 5  # 5x
+
+# live window at real-time speed:
+./run.sh curve live --realtime
+./run.sh movevp live --realtime --speed 4
+```
+
+Notes:
+- Pacing is per logged row, so keep `--decim` small enough that rows are frequent
+  (the default is fine); too-large a decimation makes the playback step coarsely.
+- Real-time is ignored when rendering to a file (`--save`), which would otherwise
+  block for the full run duration.
+- Uses POSIX `clock_gettime`/`nanosleep` (Linux/macOS/WSL). On native Windows,
+  run under WSL for `--realtime`.
+
 The **curve** plots make the firmware bug visually obvious: the right-hand
 panels show the Bresenham ratio profile, `remainDiff` counting down and
 `brakeDiff` triggering deceleration (the control logic runs correctly), while

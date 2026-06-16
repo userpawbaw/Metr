@@ -194,6 +194,9 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--decim")  && i + 1 < argc) decim   = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--quiet"))    sim_verbose = 0;
         else if (!strcmp(argv[i], "--stream"))   sim_stream  = 1;
+        else if (!strcmp(argv[i], "--realtime")) sim_realtime = 1;
+        else if (!strcmp(argv[i], "--speed")  && i + 1 < argc)
+            sim_speed = atof(argv[++i]);
         else if (!strcmp(argv[i], "--max-ms") && i + 1 < argc)
             g_max_ticks = (unsigned long)atol(argv[++i]) * 1000UL / SIM_TICK_US;
         else {

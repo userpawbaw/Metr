@@ -1,3 +1,5 @@
+/* Expose POSIX clock_gettime / nanosleep under -std=c11. */
+#define _POSIX_C_SOURCE 199309L
 /* sim_hw.c - Digital-twin runtime implementation.
  *
  * Hosts the mock hardware storage, the CPU control-register globals, the
@@ -9,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <time.h>
 
 #include "constant.h"
 #include "typedef.h"
@@ -36,6 +39,8 @@ double        sim_x = 0.0, sim_y = 0.0;
 double        sim_theta = 0.0;
 int           sim_verbose = 1;
 int           sim_stream  = 0;
+int           sim_realtime = 0;
+double        sim_speed    = 1.0;
 
 /* ---- Virtual encoder bookkeeping ---- */
 static unsigned int prevPhaseL = 0;
@@ -189,6 +194,32 @@ static void watch_check(void)
     }
 }
 
+/* Wall-clock pacing: sleep so emitted-row wall time tracks simulated time. */
+static double now_s(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec * 1e-9;
+}
+
+static void pace_realtime(void)
+{
+    static double start = -1.0;
+    double target, dt;
+
+    if (sim_speed <= 0.0) sim_speed = 1.0;
+    if (start < 0.0) start = now_s();
+
+    target = start + (sim_time_us * 1e-6) / sim_speed;
+    dt = target - now_s();
+    if (dt > 0.0) {
+        struct timespec req;
+        req.tv_sec  = (time_t)dt;
+        req.tv_nsec = (long)((dt - req.tv_sec) * 1e9);
+        nanosleep(&req, NULL);
+    }
+}
+
 /* ---- The heartbeat ---- */
 void sim_tick(void)
 {
@@ -228,6 +259,7 @@ void sim_tick(void)
         csv_row();
         event_snapshot();
         if (sim_stream) fflush(stdout);
+        if (sim_realtime) pace_realtime();
     }
 
     watch_check();
