@@ -84,6 +84,7 @@ void GIE()
 	CSR |= 0x00000001;
 }
 
+#ifndef SIM_BUILD   /* PC digital-twin supplies tick-pumping versions (sim_main.c) */
 // Caution: The delayed time is not exact.
 void delay_us(unsigned int time_us)
 {
@@ -120,6 +121,7 @@ void WaitTFlagCnt(unsigned int cnt)
 		WaitTFlag();
 	}
 }
+#endif /* !SIM_BUILD */
 
 
 //좌우 스텝모터 구동 구현
@@ -335,8 +337,9 @@ void MoveCurveRatio(float angle, int num, int den, float vmax){
 
 
 
-void WaitMotionDone(int currentAdrR, int changeAdrR) 
-{ // 디버깅용 함수. motionDone이 ISR에서 들어올때까지 출력함. 
+#ifndef SIM_BUILD   /* PC digital-twin supplies tick-pumping WaitMotionDone + main (sim_main.c) */
+void WaitMotionDone(int currentAdrR, int changeAdrR)
+{ // 디버깅용 함수. motionDone이 ISR에서 들어올때까지 출력함.
 // Done이 들어와 끝나면 motionDone 내리고 종료.
 	motionDone = 0; // 최초 0 초기화.
     while(!motionDone){
@@ -466,6 +469,4 @@ void main()
     motionDone = 0;
 */
 }
-
-
-
+#endif /* !SIM_BUILD */
