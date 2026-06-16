@@ -164,6 +164,18 @@ static void scenario_curve(void)
         }
     }
     motionDone = 0;
+    curveMode = 0;   /* 회전 완료 후 ISR을 curve 분기에서 빼냄(정지 확정) */
+
+    /* 종료가 "루프가 멈춰서"가 아니라 "펌웨어가 모터를 세워서"임을 확인:
+     * curveMode=0 + outer 정지 가드가 동작하면 추가 tick에도 step이 안 늘어야 함. */
+    {
+        long ls0 = sim_leftSteps, rs0 = sim_rightSteps;
+        int  k;
+        for (k = 0; k < 20000; k++) sim_tick();
+        fprintf(stderr,
+            "[sim] post-stop check: dLeft=%ld dRight=%ld (0,0 이면 정지 성공)\n",
+            sim_leftSteps - ls0, sim_rightSteps - rs0);
+    }
 }
 
 /* ======================================================================== */

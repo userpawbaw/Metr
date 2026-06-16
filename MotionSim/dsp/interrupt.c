@@ -193,7 +193,8 @@ interrupt void ISRtimer0()
 	// curveMode == 1, 느린 바퀴가 빠른 바퀴 상전환에 동기화되어 기준 ratio마다 상전환. 
 	//
 		// 커브모드용 업데이트
-		changeDirO = DirO;	
+		changeDirO = DirO;
+		currentDirO = changeDirO;	// 회전 방향 적용(미할당시 0 -> 상이 안 바뀜)
 		DelayCntO = VParray[currentAdrO];
 		if(stepCntRst){ // CurveMode 사용 전 초기화용
 			stepCntRst = 0;
@@ -202,16 +203,16 @@ interrupt void ISRtimer0()
 		}
 		if(pulseO){ // curveMode 초기 구현-> 동일 방향일 때만 작성 -> changeAdr에 따라 가속 or 감속
 			pulseO = 0;
+			debugAdrR = 1;	// 매 outer 펄스마다 디버그 게이트 open (가속/순항/감속 전구간 로그)
 			if(currentAdrO < changeAdrO){
 				currentAdrO++;
-				debugAdrR = 1;
 			}
 			else if(currentAdrO > changeAdrO){
 				currentAdrO--;
 			}
-			else{// 같으면 Adr 변경 x, 딜레이 유지
-					motionDone = (currentAdrO == changeAdrO);
-			}
+			// 같으면 Adr 변경 x, 딜레이 유지.
+			// 주의: 여기서 motionDone을 set하면 vmax 순항(currentAdrO==changeAdrO) 시점에
+			//       회전 도중 done이 떠버림. 진짜 종료는 아래 (changeAdrO==0) 조건만 사용.
 			DelayCntO = VParray[currentAdrO];
 			
 			curveAccum += ratio_den;
@@ -248,9 +249,15 @@ interrupt void ISRtimer0()
 				motionDone = 1;
 			}
 		}
-		// 상전환 딜레이 카운팅 및 다음 상 변경 로직  
+		// 상전환 딜레이 카운팅 및 다음 상 변경 로직
 		//////////  Outer //////////
-		if(cntO >= (DelayCntO-1)){ // 상전환 딜레이 도달
+		if((changeAdrO == 0) && (currentAdrO == 0)){
+			// 목표 도달 후 adr=0까지 감속 완료 -> 펄스 발생 정지(VP 모드와 동일한 정지 가드).
+			// currentAdrO=0은 정지가 아니라 VParray[0](최저속)이므로, 가드가 없으면
+			// 바깥바퀴가 최저속으로 계속 상전환하여 멈추지 않음.
+			cntO = 0;
+		}
+		else if(cntO >= (DelayCntO-1)){ // 상전환 딜레이 도달
 			pulseO = 1;
 			// Outer 상변환 파트
 			// 상 idx 계산

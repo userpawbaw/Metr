@@ -147,7 +147,7 @@ void MoveL(float spdL){
 	
 	//interrupt.c로 값을 보냄
 	DirL = (spdL >= 0) ? 1 : -1;  //입력값(속도)에서 방향 계산 					
-	DelayCntL = (int)(1.8f/abs(spdL) * 100000.0f);	//속도입력에서 필요 대기스텝 계산, 180000.0f = 스텝각 1.8도 * 1sec/10us 변환
+	DelayCntL = (int)(1.8f/fabsf(spdL) * 100000.0f);	//속도입력에서 필요 대기스텝 계산, 180000.0f = 스텝각 1.8도 * 1sec/10us 변환
 }
 
 
@@ -166,7 +166,7 @@ void MoveR(float spdR){
 	
 	//interrupt.c로 값을 보냄
 	DirR = (spdR >= 0) ? 1 : -1;
-	DelayCntR = (int)(180000.0f/abs(spdR));
+	DelayCntR = (int)(180000.0f/fabsf(spdR));
 }
 
 
@@ -216,8 +216,8 @@ void MoveVP(float changeVel_L, float changeVel_R){
 	DirR = (changeVel_R >= 0) ? 1 : -1;
 
 	//Delay값 계산
-	changeDelayL = (int)(180000.0f / abs(changeVel_L));
-	changeDelayR = (int)(180000.0f / abs(changeVel_R)); 
+	changeDelayL = (int)(180000.0f / fabsf(changeVel_L));
+	changeDelayR = (int)(180000.0f / fabsf(changeVel_R));
 	MACRO_PRINT((tmp_string, "changeDelayR: %d	changeDelayL: %d\r\n", changeDelayR, changeDelayL));
 	
 	//목표값 주소 찾기
@@ -252,7 +252,7 @@ void CurveVP(float changeVel_O){ // MoveVP와 로직 동일. changeAdr만 찾아
 	int i;
 	DirO = (changeVel_O >= 0) ? 1 : -1;
 
-	changeDelayO = (int)(1.8f / abs(changeVel_O) * 100000.0f); // EPSILON: 0 나누기 문제 방지
+	changeDelayO = (int)(1.8f / fabsf(changeVel_O) * 100000.0f); // fabsf: 정수 abs의 float 절단/0나눗셈 방지
 	MACRO_PRINT((tmp_string, "changeDelayO: %d\r\n", changeDelayO));
 	for(i = 0; i < VPNUM; i++){
 		if (VParray[i] <= changeDelayO){
@@ -467,6 +467,7 @@ void main()
         }
     }
     motionDone = 0;
+	curveMode = 0; // 회전 완료 후 ISR을 curve 분기에서 빼냄(정지 확정)
 */
 }
 #endif /* !SIM_BUILD */
