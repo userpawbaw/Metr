@@ -96,8 +96,28 @@ Registered variables print only when they change, e.g.:
   physical step is emitted (`leftSteps = rightSteps = 0`, pose stays at the
   origin). Faithful reproduction — the DSP logic is intentionally not patched.
 
-## Next phase
+## Python visualisation (`python/`)
 
-Python visualisation (`python/`): static plots from the CSV, then a real-time
-matplotlib animation (2D trajectory + heading on the left; remain / speed /
-curveMode / brake graphs on the right).
+```sh
+cd python
+pip install -r requirements.txt      # numpy pandas matplotlib pillow
+
+# static overview (trajectory + speed / Adr / flags / remain-brake)
+python visualize.py ../sim/motion_log.csv
+python visualize.py ../sim/motion_log.csv --save overview.png
+
+# real-time replay (left: robot + heading + trail; right: live time series)
+python animate.py ../sim/motion_log.csv               # live window
+python animate.py ../sim/curve_log.csv --save run.gif # render GIF
+#   --frames N  animation steps   --fps N   playback rate
+#   --maxpts N  cap working rows   --dpi N   render DPI when saving
+```
+
+Geometry constants in `viz_common.py` mirror `dsp/main.c` so plotted distances
+match the C side. Centre/wheel speed is derived from the logged step counts.
+
+The **curve** plots make the firmware bug visually obvious: the right-hand
+panels show the Bresenham ratio profile, `remainDiff` counting down and
+`brakeDiff` triggering deceleration (the control logic runs correctly), while
+the trajectory stays pinned at the origin because no physical step is ever
+emitted (`currentDirO` is never assigned — see *Findings*).
