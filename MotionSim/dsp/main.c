@@ -126,41 +126,51 @@ void WaitTFlagCnt(unsigned int cnt)
 
 	//전역변수 구현
 	unsigned int phase[4] = {0x2, 0x8, 0x1, 0x4};
-	int DirL;
-	int DirR;
-	unsigned int DelayCntL;
-	unsigned int DelayCntR;
+	int DirL, DirR;	//방향지정변수, 1이 전진, -1이 후진 (Boolean으로 변경가능?)
+	unsigned int DelayCntL, DelayCntR;	//대기할 스텝수
+	int motorRun_L, motorRun_R;	//속도 0일때, 작동 중지 명령
 
 void MoveL(float spdL){
 
-	//변수 설정
-	DirL = 1;	//방향지정변수, 1이 전진, -1이 후진
-	// interrupt에서 PhaseAdr++, --를 PhaseAdr += Dir로 대체하기 위해 +-1로 설정
-	DelayCntL = 0;	//대기할 스텝수
+	DirL = 1;	// interrupt에서 PhaseAdr++, --를 PhaseAdr += Dir로 대체하기 위해 +-1로 설정
+	DelayCntL = 0;	//스텝수 초기화
+	motorRun_L = 1;
+
+	//속도 0일시 작동중지
+	if(spdL == 0){
+		motorRun_L = 0;
+		return;
+	}
 	
 	
 	//interrupt.c로 값을 보냄
-	DirL = (spdL >= 0) ? 1 : -1;  //속도입력에서 방향 계산 						
-	DelayCntL = (int)(1.8f/abs(spdL) * 100000.0f);	//속도입력에서 필요 대기스텝 계산
+	DirL = (spdL >= 0) ? 1 : -1;  //입력값(속도)에서 방향 계산 					
+	DelayCntL = (int)(1.8f/abs(spdL) * 100000.0f);	//속도입력에서 필요 대기스텝 계산, 180000.0f = 스텝각 1.8도 * 1sec/10us 변환
 }
 
 
 void MoveR(float spdR){
 	
 	//변수 설정
-	DirR = 0;	//방향지정변수, boolean 사용하는게 나을듯
-	DelayCntR = 0;	//대기할 스텝수
-	
+	DirR = 1;
+	DelayCntR = 0;
+	motorRun_R = 1;
+
+	//속도 0일시 작동중지
+	if(spdR == 0){
+		motorRun_R = 0;
+		return;
+	}
 	
 	//interrupt.c로 값을 보냄
 	DirR = (spdR >= 0) ? 1 : -1;
-	DelayCntR = (int)(1.8f/abs(spdR) * 100000.0f);	//속도입력에서 필요 대기스텝 계산
+	DelayCntR = (int)(180000.0f/abs(spdR));
 }
 
 
 
 
-//VParray 생성
+//VParray 생성 MakeVP()
 
 unsigned int VParray[VPNUM];
 
@@ -176,28 +186,39 @@ void MakeVP(float accel){
 //VParray 사용
 float currentVel_R, currentVel_L;
 
-int currentAdrL = 0;
-int changeAdrL = 0;
-int currentAdrR = 0;
-int changeAdrR = 0;
-int currentAdrO = 0;
-int changeAdrO = 0;
-unsigned int changeDelayR, changeDelayL, changeDelayO;
+//VParray 사용 움직임 구현 MoveVP()
+
+//MoveVP() 전역변수 설정
+int volatile currentAdrL = 0; //코드 실행 직전 속도의 Array 주소값
+int volatile changeAdrL = 0;  //입력값(목표 속도)의 Array 주소값
+int volatile currentAdrR = 0;
+int volatile changeAdrR = 0;
+int volatile currentAdrO = 0;
+int volatile changeAdrO = 0;
+int VP_ON = 0;	//VP 작동 상태를 확인
+
+
+
+unsigned int changeDelayR, changeDelayL, changeDelayO; //입력값(목표 속도)의 Delay값
 
 
 void MoveVP(float changeVel_L, float changeVel_R){
-	
+
 	/* 	//지역변수 설정(main에서 pulse로 컨트롤하는 버젼)
 	int Vel_R, Vel_L;
 	int sign_R, sign_L;
 	*/
 	int i;
+	VP_ON = 1;
 	DirL = (changeVel_L >= 0) ? 1 : -1;
 	DirR = (changeVel_R >= 0) ? 1 : -1;
 
-	changeDelayR = (int)(1.8f / abs(changeVel_R) * 100000.0f); // EPSILON: 0 나누기 문제 방지
-	changeDelayL = (int)(1.8f / abs(changeVel_L) * 100000.0f); 
+	//Delay값 계산
+	changeDelayL = (int)(180000.0f / abs(changeVel_L));
+	changeDelayR = (int)(180000.0f / abs(changeVel_R)); 
 	MACRO_PRINT((tmp_string, "changeDelayR: %d	changeDelayL: %d\r\n", changeDelayR, changeDelayL));
+	
+	//목표값 주소 찾기
 	for(i = 0; i < VPNUM; i++){
 		if (VParray[i] <= changeDelayL){
 			changeAdrL = i; //목표 Adr 구함
@@ -210,62 +231,11 @@ void MoveVP(float changeVel_L, float changeVel_R){
 			break;
 		}
 	}
-	
+
 	MACRO_PRINT((tmp_string, "currentAdrR: %d	changeAdrR: %d\r\n ", currentAdrR, changeAdrR));
 	MACRO_PRINT((tmp_string, "currentAdrL: %d	changeAdrL: %d\r\n", currentAdrL, changeAdrL));
 	MACRO_PRINT((tmp_string, "DirL: %d DirR: %d	\r\n", DirL, DirR));
-	
-	
-	/*
-	
-		while(1) {
-			if(currentAdrR == changeAdrR & currentAdrL == changeAdrL){
-				// MACRO_PRINT((tmp_string, " Done! "));
-				break;
-			}
-			else{
-				if(currentAdrR != changeAdrR){
-					//MACRO_PRINT((tmp_string, "IN?"));
-					if(pulseR){
-						//MACRO_PRINT((tmp_string, "IN?"));
-						//sign_R = ((changeAdrR - currentAdrR) > 0) ? 1 : -1;						
-						pulseR = 0;
-						// Vel_R = 1.8 / VParray[currentAdrR] * 100000.0;
-						// MoveR(Vel_R);   	// 이전 moveR함수 그대로 이용하고자 했으나, 현재 구조에선 사용 x. 매번 1.8f/abs(spd)*100000 같은 float 나머지연산을 수행해야 하므로 비쌈.
-											// 어차피 Adr 구했으니까 그냥 MoveVP()에서 DelayCntR 자체를 VParray[Adr]로 바꿔주는게 유리.
-						DelayCntR = VParray[currentAdrR];
-						if((changeAdrR - currentAdrR) > 0){
-							currentAdrR++; 
-						} else{
-							currentAdrR--;
-						}
-						// changeAdrR - currentAdrR의 부호
-						//MACRO_PRINT((tmp_string, "current_R: %d	Vel_R: %d\r\n", currentAdrR, Vel_R));
-	
-					}
-				}
-				if(currentAdrL != changeAdrL){
-					if(pulseL){
-						//sign_L = ((changeAdrL - currentAdrL) > 0 ) ? 1 : -1;
-						pulseL = 0;
-						// Vel_L = 1.8 / VParray[currentAdrL] * 100000.0;
-						// MoveL(Vel_L);
-						DelayCntR = VParray[currentAdrR];
-						if((changeAdrL - currentAdrL) > 0){
-							currentAdrL++; 
-						} else{
-							currentAdrL--;
-						}
-						// changeAdrR - currentAdrR의 부호
-						//MACRO_PRINT((tmp_string, "current_L: %d	Vel_L: %d\r\n", currentAdrL, Vel_L));
-					}
-				}
-			}
-		}
-		//속도 고정
-		//MoveL(changeVel);
-		//MoveR(changeVel);
-	*/
+	VP_ON = 1;
 }
 
 void Rotate(float angle, float vmax){
@@ -291,11 +261,12 @@ void CurveVP(float changeVel_O){ // MoveVP와 로직 동일. changeAdr만 찾아
 }	
 
 // curveMode 처리용 전역변수(interrupt에서 사용 예정)
-int curveMode, isOuterRight;
+int volatile curveMode = 0; 
+int volatile isOuterRight = 0;
 int ratio_num, ratio_den;	// 바퀴의 속도비
 int curveAccum;				// bresenham 누적 알고리즘용 
-int changeStepDiff;			// interrupt에 보내줄 목표step차
-int currentStepDiff; 		// interrupt에서 매번 갱신할 현재Step차
+int volatile changeStepDiff;			// interrupt에 보내줄 목표step차
+int volatile currentStepDiff; 		// interrupt에서 매번 갱신할 현재Step차
 int stepCntRst;				// 양 바퀴 step차 계산용 stepCnt 초기화신호
 
 void ResetStepCount(){
@@ -401,6 +372,15 @@ void main()
 
 	WaitTFlagCnt(100);
 
+	//값 초기화
+	*STEP_PHASE_L = phase[0];
+	*STEP_PHASE_R = phase[0];
+
+
+	//Test 01 : 모터 회전 확인
+	/*
+	delay = 1000;
+	
 	while (0) { //양쪽 모터 풀스탭 회전
 		*STEP_PHASE_L = 0x2;
 		*STEP_PHASE_R = 0x2;		// A
@@ -420,72 +400,32 @@ void main()
 
 		*FPGALED = ~*FPGALED;
 	}
-	
-	//여기부터 마이크로마우스 구현
-	
-	//값 초기화
-	*STEP_PHASE_L = phase[0];
-	*STEP_PHASE_R = phase[0];
-	
-	
-	//작동지정하는 곳
-		//Move()에 0 넣었을 때 코드가 어떻게 대응하는지 생각해봐야함
-		//앞뒤 작동 확인용
-		/*
-		MoveL(-360.0);
-		MoveR(-360.0);
-		WaitTFlagCnt(1e5 * 1);
-		MoveL(360);
-		MoveR(360);
-		WaitTFlagCnt(1e5 * 1);
-		MoveL(0);
-		MoveR(0);
-		MACRO_PRINT((tmp_string, "DelayCntL: %d	DelayCntR: %d\r\n", DelayCntL, DelayCntR));
-		*/
-		
-	
-	while(0){
-		MoveL(200);
-		MoveR(200);
-		//MACRO_PRINT((tmp_string, "DelayL: %d	InterruptCntL: %d\r\n", DelayCntL, cntL));
-		WaitTFlagCnt(1000);
-	}
-	
-	DBGV2(currentVel_R, currentVel_L);
+	*/
 
-
-	//VParray 확인용
-	if(0){
-	MoveL(180);
-	MoveR(180);
+//Test 02 : MoveL(), MoveR() 작동 확인
+	/*
+	MoveL(-360.0);
+	MoveR(-360.0);
 	WaitTFlagCnt(1e5 * 1);
-	currentVel_R = 180;
-	currentVel_L = 180;
+	MoveL(360);
+	MoveR(360);
 	}
 	else{
 	MoveL(0);
 	MoveR(0);
-	WaitTFlagCnt(1e5 * 1);
-	currentVel_R = 0;
-	currentVel_L = 0;
-	}
-	
+*/
+
+//Test 03 : MoveVP 확인
+
+	//속도 프로파일 생성(입력: 가속도)
 	MakeVP(500);
+	
 
 
-
-
-
-	MoveVP(720*3, -720*3);
-	WaitTFlagCnt(1e5 * 4);
-	MoveVP(720*3, -720*3);
-	WaitTFlagCnt(1e5 * 6);
-	MoveVP(0, 0);
-	WaitTFlagCnt(1e5 * 4);
-
-
+	
 	MoveVP(1080, 360);
-
+	DBGV2(VP_ON, curveMode);
+	WaitMotionDone(currentAdrR, changeAdrR);
 	WaitTFlagCnt(1e5 * 2);
 	
 	MoveVP(180, 360);

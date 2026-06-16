@@ -47,25 +47,49 @@ interrupt void ISRtimer0()
 
 	TFlag = 1;
 	*DOUT0 = ~(*DOUT0); 
-	
-	changeDirL = DirL;
-	changeDirR = DirR;
-	changeDirO = DirO;
-	DelayCntL = VParray[currentAdrL]; // DelayCnt 초기화
-	DelayCntR = VParray[currentAdrR];
-	DelayCntO = VParray[currentAdrO];
+		//Move() 구현
+	if(!VP_ON && !curveMode){
 
-	if(stepCntRst){ // CurveMode 사용 전 초기화용
-		stepCntRst = 0;
-		stepCountL = 0;
-		stepCountR = 0;
+		if(motorRun_L){
+
+			//MoveL() 작동위치
+			if(cntL >= (DelayCntL-1)){ //상전환 딜레이 도달
+
+				phaseAdrL = (phaseAdrL + DirR + 4) % 4;
+				*STEP_PHASE_L = phase[phaseAdrL];
+				cntL = 0;
+			}
+			else{
+				cntL++;
+			}
+		}
+		if(motorRun_R){
+
+			//MoveR() 작동 위치
+			if(cntR >= (DelayCntR-1)){ //상전환 딜레이 도달
+				
+				phaseAdrR = (phaseAdrR + DirR + 4) % 4;
+				*STEP_PHASE_R = phase[phaseAdrR];
+				cntR = 0;
+			}
+			else{
+				cntR++;
+			}
+		}
 	}
-	
-	// MoveVP to interrupt
-	// 방향에 따른 처리
-	// ---- Left ----
-	if(!curveMode)
-	{  // ratio 커브 모드가 아닐 경우 -> 각 바퀴가 독립적으로 상전환 카운터 구동
+	else if(!curveMode){  // 가속 모드
+
+		changeDirL = DirL;
+		changeDirR = DirR;
+
+		DelayCntL = VParray[currentAdrL]; // DelayCnt 초기화
+		DelayCntR = VParray[currentAdrR];
+		
+		// MoveVP to interrupt
+		// 방향에 따른 처리
+		// ---- Left ----
+		
+		  // ratio 커브 모드가 아닐 경우 -> 각 바퀴가 독립적으로 상전환 카운터 구동
 		if(pulseL){ // 다음 상 딜레이 인가
 			pulseL = 0;
 			if(currentDirL != changeDirL){ // 다른 방향일 때 -> 무조건 감속하여 adr = 0에서 방향 바꿈
@@ -87,6 +111,7 @@ interrupt void ISRtimer0()
 				else{// 같으면 Adr 변경 x, 딜레이 유지
 					motionDone = 	(currentAdrL == changeAdrL) && 
 									(currentAdrR == changeAdrR);
+					VP_ON = !motionDone;
 				}
 				DelayCntL = VParray[currentAdrL];
 			}
@@ -136,6 +161,7 @@ interrupt void ISRtimer0()
 				else{// 같으면 Adr 변경 x, 딜레이 유지
 					motionDone = 	(currentAdrL == changeAdrL) && 
 									(currentAdrR == changeAdrR);
+					VP_ON = !motionDone;
 				}
 				DelayCntR = VParray[currentAdrR];
 			}
@@ -166,6 +192,14 @@ interrupt void ISRtimer0()
 	///////////////////////////////////////////////////////////////////////////
 	// curveMode == 1, 느린 바퀴가 빠른 바퀴 상전환에 동기화되어 기준 ratio마다 상전환. 
 	//
+		// 커브모드용 업데이트
+		changeDirO = DirO;	
+		DelayCntO = VParray[currentAdrO];
+		if(stepCntRst){ // CurveMode 사용 전 초기화용
+			stepCntRst = 0;
+			stepCountL = 0;
+			stepCountR = 0;
+		}
 		if(pulseO){ // curveMode 초기 구현-> 동일 방향일 때만 작성 -> changeAdr에 따라 가속 or 감속
 			pulseO = 0;
 			if(currentAdrO < changeAdrO){
@@ -181,6 +215,38 @@ interrupt void ISRtimer0()
 			DelayCntO = VParray[currentAdrO];
 			
 			curveAccum += ratio_den;
+
+			// 종료 로직: step 모터에서 하던 감속 알고리즘 사용.
+			// -> 목표거리까지 남은 step이 현재 adr과 같으면 감속 시작하는 형태.
+			// 단, 지금은 확인할 대상이 목표step차 - 현재step차임.
+			// 즉 remainDiff = abs(targetStepDiff - currentStepDiff)가 남은 각도에 대응하는 스텝수가 됨.
+			// 이때, 단순히 현재 if(AdrO == remainDiff) -> 감속시작 처럼 구현시 remainDiff가 AdrO--마다 같이 1씩 변경되는게 아니라,
+			//  ratio에 따라 다를 수 있음을 고려해야 함. 
+
+			// ex) ratio가 0.25 <=> num:den == 4:1일 경우
+			// 바깥바퀴 상변환 4번당 안쪽 1번 변경.
+			// -> AdrO-- 가 네번 발생할 동안, stepDiff는 3번만 변경 -> AdrO가 0이 되어도  remainDiff != 0이 됨. 목표각도 도달 x.
+			// 즉 AdrO == remainDiff / (1-ratio)이면 동작하게 해야 적절함.
+		
+			currentStepDiff = stepCountR - stepCountL;
+
+			remainDiff = abs(changeStepDiff) - abs(currentStepDiff);
+			brakeDiff = currentAdrO * (ratio_num - ratio_den) / ratio_num;
+
+			if(brakeDiff < 1){ 
+				// 
+				brakeDiff = 1;
+			}
+
+			// 감속 시작
+			if((remainDiff <= brakeDiff)){
+				changeAdrO = 0; // 
+			}
+
+			// 종료
+			if((currentAdrO == changeAdrO) && (changeAdrO == 0)){
+				motionDone = 1;
+			}
 		}
 		// 상전환 딜레이 카운팅 및 다음 상 변경 로직  
 		//////////  Outer //////////
@@ -235,43 +301,8 @@ interrupt void ISRtimer0()
 				stepCountR++;
 			}
 		}
-		
-		// 종료 로직: step 모터에서 하던 감속 알고리즘 사용.
-		// -> 목표거리까지 남은 step이 현재 adr과 같으면 감속 시작하는 형태.
-		// 단, 지금은 확인할 대상이 목표step차 - 현재step차임.
-		// 즉 remainDiff = abs(targetStepDiff - currentStepDiff)가 남은 각도에 대응하는 스텝수가 됨.
-		// 이때, 단순히 현재 if(AdrO == remainDiff) -> 감속시작 처럼 구현시 remainDiff가 AdrO--마다 같이 1씩 변경되는게 아니라,
-		//  ratio에 따라 다를 수 있음을 고려해야 함. 
-
-		// ex) ratio가 0.25 <=> num:den == 4:1일 경우
-		// 바깥바퀴 상변환 4번당 안쪽 1번 변경.
-		// -> AdrO-- 가 네번 발생할 동안, stepDiff는 3번만 변경 -> AdrO가 0이 되어도  remainDiff != 0이 됨. 목표각도 도달 x.
-		// 즉 AdrO == remainDiff / (1-ratio)이면 동작하게 해야 적절함.
-	
-		currentStepDiff = stepCountR - stepCountL;
-
-		remainDiff = abs(changeStepDiff) - abs(currentStepDiff);
-		brakeDiff = currentAdrO * (ratio_num - ratio_den) / ratio_num;
-
-		if(brakeDiff < 1){ 
-			// 
-			brakeDiff = 1;
-		}
-
-		// 감속 시작
-		if((remainDiff <= brakeDiff)){
-			changeAdrO = 0; // 
-		}
-
-		// 종료
-		if((currentAdrO == changeAdrO) && (changeAdrO == 0)){
-			motionDone = 1;
-		}
-
 	}
 	
-	
-	UMAddData(currentStepDiff, 0, 0, 0);
 }
 
 interrupt void ISRNMI()
