@@ -35,6 +35,7 @@ long          sim_rightSteps  = 0;
 double        sim_x = 0.0, sim_y = 0.0;
 double        sim_theta = 0.0;
 int           sim_verbose = 1;
+int           sim_stream  = 0;
 
 /* ---- Virtual encoder bookkeeping ---- */
 static unsigned int prevPhaseL = 0;
@@ -119,11 +120,22 @@ void sim_open_log(const char *path, int decimation)
     csv_header();
 }
 
+/* Stream CSV to stdout so a consumer (e.g. animate_live.py) can read it live.
+ * Status/watch text must then go to stderr to keep stdout pure CSV. */
+void sim_open_log_stream(int decimation)
+{
+    logfp = stdout;
+    logdecim = (decimation > 0) ? decimation : 1;
+    csv_header();
+    fflush(stdout);
+}
+
 void sim_close_log(void)
 {
     if (logfp) {
         csv_row();          /* always capture the final state */
-        fclose(logfp);
+        if (logfp == stdout) fflush(stdout);
+        else                 fclose(logfp);
         logfp = NULL;
     }
 }
@@ -168,9 +180,10 @@ static void watch_check(void)
                  ? (long)*watches[i].up
                  : (long)*watches[i].ip;
         if (cur != watches[i].last) {
-            printf("[watch] %-16s %ld -> %ld   (tick %lu, t=%.0fus)\n",
-                   watches[i].name, watches[i].last, cur,
-                   sim_tick_count, sim_time_us);
+            fprintf(sim_stream ? stderr : stdout,
+                    "[watch] %-16s %ld -> %ld   (tick %lu, t=%.0fus)\n",
+                    watches[i].name, watches[i].last, cur,
+                    sim_tick_count, sim_time_us);
             watches[i].last = cur;
         }
     }
@@ -214,6 +227,7 @@ void sim_tick(void)
                   event_changed())) {
         csv_row();
         event_snapshot();
+        if (sim_stream) fflush(stdout);
     }
 
     watch_check();

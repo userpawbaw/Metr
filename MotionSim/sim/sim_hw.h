@@ -28,9 +28,11 @@ extern long          sim_rightSteps;   /* net signed right-wheel steps */
 extern double        sim_x, sim_y;     /* robot position [m]           */
 extern double        sim_theta;        /* robot heading [rad]          */
 extern int           sim_verbose;      /* echo MACRO_PRINT traces      */
+extern int           sim_stream;       /* CSV goes to stdout (pipe mode)*/
 
 /* ---- Lifecycle ---- */
 void sim_open_log(const char *path, int decimation);
+void sim_open_log_stream(int decimation);   /* log to stdout for piping */
 void sim_close_log(void);
 void sim_tick(void);                   /* advance one ISR period       */
 

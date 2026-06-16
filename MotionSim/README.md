@@ -116,6 +116,42 @@ python animate.py ../sim/curve_log.csv --save run.gif # render GIF
 Geometry constants in `viz_common.py` mirror `dsp/main.c` so plotted distances
 match the C side. Centre/wheel speed is derived from the logged step counts.
 
+## One-shot workflow and live mode
+
+The whole point: **edit the C, re-run, and the visualisation reflects it** —
+Python only draws the CSV the C simulator produces.
+
+```
+dsp/*.c  ──build──►  motion_sim  ──CSV──►  Python  ──►  plot / animation
+```
+
+**`run.sh`** does build → run → visualise in a single command:
+
+```sh
+cd MotionSim
+./run.sh curve static            # build, run, static plot
+./run.sh movevp anim             # build, run, recorded animation
+./run.sh curve live              # build, then pipe C straight into Python
+./run.sh movevp anim --save out.gif   # extra args go to the Python script
+```
+
+Equivalent Makefile targets (in `sim/`): `make viz`, `make anim`, `make live`
+(`SCN=curve make live` to pick the scenario).
+
+**Live mode** (`animate_live.py`) launches `motion_sim --stream`, reads its CSV
+from stdout in a background thread, and animates as rows arrive — no
+intermediate file. The C sim runs faster than real time, so the buffer fills
+quickly and then plays back at `--fps`; it is fed directly from the running C
+process. `motion_sim --stream` writes pure CSV to stdout and all status/watch
+text to stderr, so it composes with any consumer:
+
+```sh
+./sim/motion_sim curve --stream | python python/animate_live.py   # (or your own tool)
+```
+
+After changing `dsp/interrupt.c` / `dsp/main.c`, just re-run any of the above;
+no other steps are needed.
+
 The **curve** plots make the firmware bug visually obvious: the right-hand
 panels show the Bresenham ratio profile, `remainDiff` counting down and
 `brakeDiff` triggering deceleration (the control logic runs correctly), while

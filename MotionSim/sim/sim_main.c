@@ -110,7 +110,7 @@ void WaitMotionDone(int currentAdrR, int changeAdrR)
 /* The "Test 03 : MoveVP" sequence active in the uploaded main(). */
 static void scenario_movevp(void)
 {
-    printf("[sim] scenario: movevp\n");
+    fprintf(stderr, "[sim] scenario: movevp\n");
 
     MoveVP(1080, 360);
     DBGV2(VP_ON, curveMode);
@@ -138,7 +138,7 @@ static void scenario_curve(void)
 {
     unsigned long guard = 0;
 
-    printf("[sim] scenario: curve\n");
+    fprintf(stderr, "[sim] scenario: curve\n");
 
     MoveCurveRatio(30, 2, 1, 300);
     DBGV2(changeStepDiff, isOuterRight);
@@ -193,6 +193,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i], "--out")    && i + 1 < argc) outpath = argv[++i];
         else if (!strcmp(argv[i], "--decim")  && i + 1 < argc) decim   = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--quiet"))    sim_verbose = 0;
+        else if (!strcmp(argv[i], "--stream"))   sim_stream  = 1;
         else if (!strcmp(argv[i], "--max-ms") && i + 1 < argc)
             g_max_ticks = (unsigned long)atol(argv[++i]) * 1000UL / SIM_TICK_US;
         else {
@@ -201,8 +202,12 @@ int main(int argc, char **argv)
         }
     }
 
-    printf("[sim] C6701 motion digital-twin  (tick=%d us, decim=%d)\n",
-           SIM_TICK_US, decim);
+    /* In stream mode stdout carries pure CSV; status text goes to stderr. */
+    FILE *info = sim_stream ? stderr : stdout;
+    if (sim_stream) sim_verbose = 0;
+
+    fprintf(info, "[sim] C6701 motion digital-twin  (tick=%d us, decim=%d)\n",
+            SIM_TICK_US, decim);
 
     /* Board-like initialisation that is meaningful on PC. */
     InitUART();              /* stub */
@@ -211,7 +216,8 @@ int main(int argc, char **argv)
     *STEP_PHASE_R = phase[0];
 
     register_watches();
-    sim_open_log(outpath, decim);
+    if (sim_stream) sim_open_log_stream(decim);
+    else            sim_open_log(outpath, decim);
 
     if      (!strcmp(scenario, "movevp")) scenario_movevp();
     else if (!strcmp(scenario, "curve"))  scenario_curve();
@@ -224,12 +230,12 @@ int main(int argc, char **argv)
 
     sim_close_log();
 
-    printf("[sim] done: %lu ticks (%.1f ms sim time)\n",
-           sim_tick_count, sim_time_us / 1000.0);
-    printf("[sim] final: x=%.4f m  y=%.4f m  theta=%.2f deg  "
-           "leftSteps=%ld rightSteps=%ld\n",
-           sim_x, sim_y, sim_theta * 180.0 / SIM_PI,
-           sim_leftSteps, sim_rightSteps);
-    printf("[sim] log written to %s\n", outpath);
+    fprintf(info, "[sim] done: %lu ticks (%.1f ms sim time)\n",
+            sim_tick_count, sim_time_us / 1000.0);
+    fprintf(info, "[sim] final: x=%.4f m  y=%.4f m  theta=%.2f deg  "
+            "leftSteps=%ld rightSteps=%ld\n",
+            sim_x, sim_y, sim_theta * 180.0 / SIM_PI,
+            sim_leftSteps, sim_rightSteps);
+    if (!sim_stream) fprintf(info, "[sim] log written to %s\n", outpath);
     return 0;
 }

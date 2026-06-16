@@ -28,5 +28,19 @@ run: $(BIN)
 curve: $(BIN)
 	./$(BIN) curve
 
+# Build + run + visualise in one step (SCN selects the scenario).
+SCN ?= movevp
+
+viz: $(BIN)            ## static plot
+	./$(BIN) $(SCN) --out $(SCN)_log.csv
+	cd ../python && python3 visualize.py ../sim/$(SCN)_log.csv
+
+anim: $(BIN)           ## recorded animation
+	./$(BIN) $(SCN) --out $(SCN)_log.csv
+	cd ../python && python3 animate.py ../sim/$(SCN)_log.csv
+
+live: $(BIN)           ## live: C piped straight into Python
+	cd ../python && python3 animate_live.py $(SCN)
+
 clean:
-	rm -f $(BIN) motion_log.csv
+	rm -f $(BIN) *.csv
