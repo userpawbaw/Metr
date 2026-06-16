@@ -138,6 +138,26 @@ cd MotionSim
 Equivalent Makefile targets (in `sim/`): `make viz`, `make anim`, `make live`
 (`SCN=curve make live` to pick the scenario).
 
+### Windows
+
+`run.sh` is a bash script and will **not** run in PowerShell. Two options:
+
+- **WSL (recommended):** `wsl --install`, then inside Ubuntu
+  `sudo apt install -y build-essential python3 python3-venv python3-pip`,
+  `cd /mnt/c/Users/<you>/.../MotionSim`, install the Python deps, and use
+  `./run.sh ...` exactly as above (GUI windows work via WSLg on Windows 11).
+- **Native PowerShell:** install MSYS2/MinGW (`gcc`, `make`) + Python on PATH,
+  then use the PowerShell port:
+
+  ```powershell
+  .\run.ps1 curve live
+  .\run.ps1 movevp anim --save run.gif
+  ```
+
+  `--realtime` works under MinGW (winpthreads provides `clock_gettime`/
+  `nanosleep`). If scripts are blocked:
+  `powershell -ExecutionPolicy Bypass -File .\run.ps1 curve live`.
+
 **Live mode** (`animate_live.py`) launches `motion_sim --stream`, reads its CSV
 from stdout in a background thread, and animates it. By default the run is
 buffered and played back frame-by-frame at `--fps` (smooth, blitted) — the C sim
