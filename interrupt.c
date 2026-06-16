@@ -15,18 +15,17 @@
 
 
 unsigned int TFlag = 0;
+
+//Move() 사용 변수
 int cntL = 0;
 int cntR = 0;
-int cntO = 0;
-
-int DelayCntO = 0; // curveMode일때의 바깥바퀴 상 딜레이 cnt
- 
 unsigned int phaseAdrL = 0;
 unsigned int phaseAdrR = 0;
-unsigned int phaseAdrO = 0;
 
-//int save_DelayCntL;
-//int save_DelayCntR;
+
+int cntO = 0;
+int DelayCntO = 0; // curveMode일때의 바깥바퀴 상 딜레이 cnt
+unsigned int phaseAdrO = 0;
 
 int volatile pulseL, pulseR, pulseO;
 int currentDirL, currentDirR, currentDirO;
@@ -37,7 +36,7 @@ int stepCountL = 0;
 int stepCountR = 0;
 
 int remainDiff, brakeDiff;
-int motionDone = 0;
+int motionDone;
 
 int debugAdrL = 0;
 int debugAdrR = 0;
@@ -47,6 +46,49 @@ interrupt void ISRtimer0()
 
 	TFlag = 1;
 	*DOUT0 = ~(*DOUT0); 
+	
+	
+	//Move() 구현
+	if(!VP_ON & !CM_ON){
+		
+		if(motorRun_L){
+			
+			//MoveL() 작동위치
+			if(cntL >= (DelayCntL-1)){ //상전환 딜레이 도달
+
+				if(DirL){
+					phaseAdrL = (phaseAdrL + 1) % 4;
+				}
+				else{
+					phaseAdrL = (phaseAdrL - 1 + 4) % 4;
+				}
+				*STEP_PHASE_L = phase[phaseAdrL];
+				cntL = 0;
+			}
+			else{
+				cntL++;
+			}
+		}
+		if(motorRun_R){
+			
+			//MoveR() 작동 위치
+			if(cntR >= (DelayCntR-1)){ //상전환 딜레이 도달
+
+				if(DirR){
+					phaseAdrR = (phaseAdrR + 1) % 4;
+				}
+				else{
+					phaseAdrR = (phaseAdrR - 1 + 4) % 4;
+				}
+				*STEP_PHASE_R = phase[phaseAdrR];
+				cntR = 0;
+			}
+			else{
+				cntR++;
+			}
+		}
+	}
+	else if(!CM_ON){  // ratio 커브 모드가 아닐 경우 -> 각 바퀴가 독립적으로 상전환 카운터 구동
 	
 	changeDirL = DirL;
 	changeDirR = DirR;
@@ -61,11 +103,7 @@ interrupt void ISRtimer0()
 		stepCountR = 0;
 	}
 	
-	// MoveVP to interrupt
-	// 방향에 따른 처리
-	// ---- Left ----
-	if(!curveMode)
-	{  // ratio 커브 모드가 아닐 경우 -> 각 바퀴가 독립적으로 상전환 카운터 구동
+	
 		if(pulseL){ // 다음 상 딜레이 인가
 			pulseL = 0;
 			if(currentDirL != changeDirL){ // 다른 방향일 때 -> 무조건 감속하여 adr = 0에서 방향 바꿈
@@ -270,8 +308,6 @@ interrupt void ISRtimer0()
 
 	}
 	
-	
-	UMAddData(currentStepDiff, 0, 0, 0);
 }
 
 interrupt void ISRNMI()
