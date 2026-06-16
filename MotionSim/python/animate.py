@@ -126,7 +126,8 @@ def main():
     fig.tight_layout(rect=(0, 0, 1, 0.97))
 
     ani = FuncAnimation(fig, update, frames=len(idx),
-                        interval=1000 / args.fps, blit=False, repeat=False)
+                        interval=1000 / args.fps, blit=True, repeat=False,
+                        cache_frame_data=False)
 
     if args.save:
         if args.save.endswith(".gif"):

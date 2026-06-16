@@ -139,11 +139,10 @@ Equivalent Makefile targets (in `sim/`): `make viz`, `make anim`, `make live`
 (`SCN=curve make live` to pick the scenario).
 
 **Live mode** (`animate_live.py`) launches `motion_sim --stream`, reads its CSV
-from stdout in a background thread, and animates as rows arrive — no
-intermediate file. The C sim runs faster than real time, so the buffer fills
-quickly and then plays back at `--fps`; it is fed directly from the running C
-process. `motion_sim --stream` writes pure CSV to stdout and all status/watch
-text to stderr, so it composes with any consumer:
+from stdout in a background thread, and animates it. By default the run is
+buffered and played back frame-by-frame at `--fps` (smooth, blitted) — the C sim
+fills the buffer almost instantly. Add `--realtime` to instead *follow* the C
+sim paced to wall-clock time. No intermediate file is used:
 
 ```sh
 ./sim/motion_sim curve --stream | python python/animate_live.py   # (or your own tool)
@@ -168,6 +167,13 @@ real-time data.
 ./run.sh curve live --realtime
 ./run.sh movevp live --realtime --speed 4
 ```
+
+Smoothness tips:
+- Increase `--frames` (default 400) and/or `--fps` for a more continuous replay;
+  the buffered modes use blitting so this stays cheap.
+- Without `--realtime`, live mode buffers then replays frame-by-frame — it will
+  not "jump" through the data. Use `--realtime` only when you want true
+  wall-clock following (its smoothness is then bounded by the row cadence).
 
 Notes:
 - Pacing is per logged row, so keep `--decim` small enough that rows are frequent
