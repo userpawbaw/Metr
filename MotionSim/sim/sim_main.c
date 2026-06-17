@@ -186,6 +186,16 @@ static void scenario_curve(void)
     }
 }
 
+/* 디버그용: 후진 먼저 -> 전진. "후진 이후 전진이 안된다" 재현/확인용. */
+static void scenario_revfwd(void)
+{
+    fprintf(stderr, "[sim] scenario: revfwd (rev+30 then fwd+30)\n");
+    run_curve_segment( 30, 2, 1, -300);   /* 후진 +30 */
+    run_curve_segment( 30, 2, 1,  300);   /* 전진 +30 */
+    fprintf(stderr, "[sim] revfwd final theta=%.2f deg\n",
+            sim_theta * 180.0 / SIM_PI);
+}
+
 /* 직각주차: 전진 +30 / 후진 +30 / 전진 +30 = 누적 +90deg 헤딩 회전.
  * 같은 +angle을 vmax 부호(전진/후진)만 바꿔 호출 -> ISR이 outer 바퀴를 자동으로 뒤집어
  * 세 세그먼트 모두 같은 방향(+) 회전이 누적되어 직각으로 들어감. */
@@ -260,6 +270,7 @@ int main(int argc, char **argv)
     if      (!strcmp(scenario, "movevp"))  scenario_movevp();
     else if (!strcmp(scenario, "curve"))   scenario_curve();
     else if (!strcmp(scenario, "parking")) scenario_parking();
+    else if (!strcmp(scenario, "revfwd"))  scenario_revfwd();
     else {
         fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve|parking)\n",
                 scenario);
