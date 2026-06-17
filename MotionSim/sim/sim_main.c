@@ -133,41 +133,49 @@ static void scenario_movevp(void)
     WaitMotionDone(currentAdrR, changeAdrR);
 }
 
-/* The curve / Bresenham test that was commented out in main(). */
-static void scenario_curve(void)
+/* 한 회전 세그먼트 실행: 새 API(MoveCurveRatio(); while(!motionDone);)를 그대로 사용.
+ * curveMode 종료/정지는 ISR이 자체 처리하므로 호출측은 done만 기다리면 됨. */
+static void run_curve_segment(float angle, int num, int den, float vmax)
 {
     unsigned long guard = 0;
 
-    fprintf(stderr, "[sim] scenario: curve\n");
+    MoveCurveRatio(angle, num, den, vmax);
+    fprintf(stderr, "[sim] segment angle=%.0f vmax=%.0f  isOuterRight=%d "
+                    "changeStepDiff=%d theta0=%.2f\n",
+            angle, vmax, isOuterRight, changeStepDiff,
+            sim_theta * 180.0 / SIM_PI);
 
-    MoveCurveRatio(30, 2, 1, 300);
-    DBGV2(changeStepDiff, isOuterRight);
-    DBGV2(curveMode, changeAdrO);
-
-    motionDone = 0;
-    while (!motionDone) {
+    while (!motionDone) {                /* ISR이 curveMode=0 + motionDone=1로 종료 */
         sim_tick();
         if (debugAdrL || debugAdrR) {
-            DBGV2(currentStepDiff, remainDiff);
-            DBGV2(stepCountL, stepCountR);
             debugAdrL = 0;
             debugAdrR = 0;
         }
         if (++guard >= g_max_ticks) {
             fprintf(stderr,
-                "[sim] TIMEOUT: curve motionDone not reached after %lu ticks "
-                "(%.1f ms). currentAdrO=%d changeAdrO=%d remainDiff=%d "
-                "brakeDiff=%d\n",
+                "[sim] TIMEOUT: segment not done after %lu ticks (%.1f ms). "
+                "currentAdrO=%d changeAdrO=%d remainDiff=%d brakeDiff=%d\n",
                 guard, guard * SIM_TICK_US / 1000.0,
                 currentAdrO, changeAdrO, remainDiff, brakeDiff);
-            break;
+            return;
         }
     }
-    motionDone = 0;
-    curveMode = 0;   /* 회전 완료 후 ISR을 curve 분기에서 빼냄(정지 확정) */
+
+    fprintf(stderr, "[sim]   -> done: theta=%.2f deg  curveMode=%d  "
+                    "leftSteps=%ld rightSteps=%ld\n",
+            sim_theta * 180.0 / SIM_PI, curveMode,
+            sim_leftSteps, sim_rightSteps);
+}
+
+/* The curve / Bresenham test that was commented out in main(). */
+static void scenario_curve(void)
+{
+    fprintf(stderr, "[sim] scenario: curve\n");
+
+    run_curve_segment(30, 2, 1, 300);
 
     /* 종료가 "루프가 멈춰서"가 아니라 "펌웨어가 모터를 세워서"임을 확인:
-     * curveMode=0 + outer 정지 가드가 동작하면 추가 tick에도 step이 안 늘어야 함. */
+     * ISR이 curveMode를 내리고 outer 정지 가드가 동작하면 추가 tick에도 step이 안 늘어야 함. */
     {
         long ls0 = sim_leftSteps, rs0 = sim_rightSteps;
         int  k;
@@ -176,6 +184,21 @@ static void scenario_curve(void)
             "[sim] post-stop check: dLeft=%ld dRight=%ld (0,0 이면 정지 성공)\n",
             sim_leftSteps - ls0, sim_rightSteps - rs0);
     }
+}
+
+/* 직각주차: 전진 +30 / 후진 +30 / 전진 +30 = 누적 +90deg 헤딩 회전.
+ * 같은 +angle을 vmax 부호(전진/후진)만 바꿔 호출 -> ISR이 outer 바퀴를 자동으로 뒤집어
+ * 세 세그먼트 모두 같은 방향(+) 회전이 누적되어 직각으로 들어감. */
+static void scenario_parking(void)
+{
+    fprintf(stderr, "[sim] scenario: parking (perpendicular, 3-move 30+30+30)\n");
+
+    run_curve_segment( 30, 2, 1,  300);   /* 전진 +30 */
+    run_curve_segment( 30, 2, 1, -300);   /* 후진 +30 */
+    run_curve_segment( 30, 2, 1,  300);   /* 전진 +30 */
+
+    fprintf(stderr, "[sim] parking final theta=%.2f deg (target ~90)\n",
+            sim_theta * 180.0 / SIM_PI);
 }
 
 /* ======================================================================== */
@@ -234,10 +257,11 @@ int main(int argc, char **argv)
     if (sim_stream) sim_open_log_stream(decim);
     else            sim_open_log(outpath, decim);
 
-    if      (!strcmp(scenario, "movevp")) scenario_movevp();
-    else if (!strcmp(scenario, "curve"))  scenario_curve();
+    if      (!strcmp(scenario, "movevp"))  scenario_movevp();
+    else if (!strcmp(scenario, "curve"))   scenario_curve();
+    else if (!strcmp(scenario, "parking")) scenario_parking();
     else {
-        fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve)\n",
+        fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve|parking)\n",
                 scenario);
         sim_close_log();
         return 2;

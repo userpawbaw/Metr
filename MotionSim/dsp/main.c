@@ -319,19 +319,30 @@ void MoveCurveRatio(float angle, int num, int den, float vmax){
 	// 어레이 하나로 여러 가속도 구현 가능.   
 	// MoveVP와 유사하게 상 변환은 interrupt에서. 목표 각도차, 최대 Adr만 넘겨주고 함수가 끝나는 방식. 
 	
-	// 사용법: MoveCurveRatio(...); while(~curveDone); (끝났단 신호는 interrupt가 알려줌) 
+	// 사용법: MoveCurveRatio(...); while(!motionDone); (종료/curveMode=0은 ISR이 처리)
 	// MoveVP(); etc....
 
 
-	ResetStepCount(); // 현재 헤딩 기준으로 목표 회전각도만큼 회전하기 위해 초기화
-	curveMode = 1;
+	ResetStepCount();   // 현재 헤딩 기준으로 목표 회전각도만큼 회전하기 위해 초기화
+	motionDone = 0;     // 이전 동작의 done 잔류 제거(연속 호출 대비)
 	changeStepDiff = AngleToDiffStep(angle);
-	isOuterRight = (changeStepDiff > 0) ? 1 : 0;
-	ratio_num = num; 
+	ratio_num = num;
 	ratio_den = den;
 	curveAccum = 0; 	// 초기화
-	CurveVP(vmax); 		// 회전중 최대속도에 해당하는 VParray Adr 계산해 전달 
+	CurveVP(vmax); 		// 회전중 최대속도에 해당하는 VParray Adr 계산해 전달, DirO 설정
+
+	// 전진/후진(DirO)에 따라 outer 바퀴가 뒤집힘.
+	// 같은 +angle이라도 forward는 R-outer, reverse는 L-outer여야 동일 방향(+) 헤딩 회전.
+	// sign(angle) == sign(DirO) 이면 R-outer, 아니면 L-outer.
+	isOuterRight = ((changeStepDiff > 0) == (DirO > 0)) ? 1 : 0;
 	phaseAdrO = (isOuterRight) ? phaseAdrR : phaseAdrL; // 커브모드 진입 1회시 초기화
+
+	// 종료 후 ISR이 VP/Move 분기에서 헛돌지 않도록 정지상태로 세팅
+	VP_ON = 0;
+	motorRun_L = 0;
+	motorRun_R = 0;
+
+	curveMode = 1;      // 모든 상태 세팅 후 마지막에 arm(ISR이 stale 상태로 진입하는 것 방지)
 	DBGV2(curveMode, changeAdrO);
 }
 
@@ -466,8 +477,7 @@ void main()
             debugAdrR = 0;
         }
     }
-    motionDone = 0;
-	curveMode = 0; // 회전 완료 후 ISR을 curve 분기에서 빼냄(정지 확정)
+    // curveMode=0 / motionDone 종료는 ISR이 처리(자체 종료). 별도 정리 불필요.
 */
 }
 #endif /* !SIM_BUILD */

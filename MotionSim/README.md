@@ -62,7 +62,8 @@ are visible (silence with `--quiet`).
 cd sim
 make
 ./motion_sim movevp                 # the active "Test 03 : MoveVP" sequence
-./motion_sim curve                  # the previously commented-out curve test
+./motion_sim curve                  # single 30 deg ratio turn (Bresenham)
+./motion_sim parking                # perpendicular parking: fwd+30 / rev+30 / fwd+30
 ./motion_sim movevp --quiet --decim 100 --out run.csv
 ```
 
@@ -89,12 +90,20 @@ Registered variables print only when they change, e.g.:
 
 - **`movevp`** reproduces real physical motion (wheel steps accumulate, pose
   evolves) — VP mode sets the wheel directions correctly.
-- **`curve`** exposes a firmware bug: in the `curveMode` branch of
-  `interrupt.c`, `currentDirO` is read (lines 257/293/299) but **never
-  assigned** from `changeDirO`, so `phaseAdrO` never advances. The internal
-  `currentStepDiff` still reaches its target and `motionDone` fires, but no
-  physical step is emitted (`leftSteps = rightSteps = 0`, pose stays at the
-  origin). Faithful reproduction — the DSP logic is intentionally not patched.
+- **`curve`** now turns ~30 deg at the requested wheel ratio and **stops**
+  (`leftSteps:rightSteps = 36:72 = 1:2`, pose advances, then halts). Earlier it
+  never stopped / never moved; fixed by a set of `curveMode` bugs:
+  - `currentDirO` was read but never assigned (`phaseAdrO` never advanced) —
+    now `currentDirO = changeDirO`.
+  - No stop guard: `currentAdrO == 0` is `VParray[0]` (slowest speed), not a
+    halt, and `curveMode` was never cleared, so the outer wheel crept forever.
+    Added an outer pulse-freeze guard and ISR self-termination
+    (`curveMode = 0` at the terminal condition, mirroring the `VP_ON` pattern).
+  - Removed a premature `motionDone` that fired at vmax cruise.
+- **`parking`** chains three turns — `fwd +30 / rev +30 / fwd +30` — into a
+  ~90 deg perpendicular park. `isOuterRight` is derived from
+  `sign(angle) == sign(DirO)`, so the same `+angle` with a reversed `vmax`
+  flips the outer wheel and keeps the heading rotating the same way.
 
 ## Python visualisation (`python/`)
 
@@ -203,8 +212,7 @@ Notes:
 - Uses POSIX `clock_gettime`/`nanosleep` (Linux/macOS/WSL). On native Windows,
   run under WSL for `--realtime`.
 
-The **curve** plots make the firmware bug visually obvious: the right-hand
-panels show the Bresenham ratio profile, `remainDiff` counting down and
-`brakeDiff` triggering deceleration (the control logic runs correctly), while
-the trajectory stays pinned at the origin because no physical step is ever
-emitted (`currentDirO` is never assigned — see *Findings*).
+The **curve** / **parking** plots show the Bresenham ratio profile, `remainDiff`
+counting down and `brakeDiff` triggering deceleration, with the trajectory now
+tracing the actual arc(s) and the pose halting at the target heading (see
+*Findings* for the `curveMode` fixes).

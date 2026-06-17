@@ -244,9 +244,11 @@ interrupt void ISRtimer0()
 				changeAdrO = 0; // 
 			}
 
-			// 종료
+			// 종료: ISR 자체 종료(VP_ON 패턴과 동일하게 ISR이 curveMode를 내림).
+			// caller는 MoveCurveRatio(); while(!motionDone); 만으로 사용 가능.
 			if((currentAdrO == changeAdrO) && (changeAdrO == 0)){
 				motionDone = 1;
+				curveMode = 0;
 			}
 		}
 		// 상전환 딜레이 카운팅 및 다음 상 변경 로직
