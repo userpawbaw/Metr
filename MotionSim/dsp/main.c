@@ -133,40 +133,62 @@ void WaitTFlagCnt(unsigned int cnt)
 	int motorRun_L, motorRun_R;	//속도 0일때, 작동 중지 명령
 
 void MoveL(float spdL){
+	int i;
 
 	DirL = 1;	// interrupt에서 PhaseAdr++, --를 PhaseAdr += Dir로 대체하기 위해 +-1로 설정
 	DelayCntL = 0;	//스텝수 초기화
 	motorRun_L = 1;
 
+	// Move 명령이 바퀴 소유권을 가져감 -> 다른 모드 해제
+	VP_ON = 0;
+	curveMode = 0;
+
 	//속도 0일시 작동중지
 	if(spdL == 0){
 		motorRun_L = 0;
+		currentAdrL = 0;	// 정지: 유지속도 인덱스도 0으로
 		return;
 	}
-	
-	
+
+
 	//interrupt.c로 값을 보냄
-	DirL = (spdL >= 0) ? 1 : -1;  //입력값(속도)에서 방향 계산 					
+	DirL = (spdL >= 0) ? 1 : -1;  //입력값(속도)에서 방향 계산
 	DelayCntL = (int)(1.8f/fabsf(spdL) * 100000.0f);	//속도입력에서 필요 대기스텝 계산, 180000.0f = 스텝각 1.8도 * 1sec/10us 변환
+
+	// VP 핸드오프용: 현재 속도에 해당하는 Adr 갱신(다음 MoveVP가 이 속도에서 출발)
+	for(i = 0; i < VPNUM; i++){
+		if(VParray[i] <= DelayCntL){ currentAdrL = i; break; }
+	}
 }
 
 
 void MoveR(float spdR){
-	
+	int i;
+
 	//변수 설정
 	DirR = 1;
 	DelayCntR = 0;
 	motorRun_R = 1;
 
+	// Move 명령이 바퀴 소유권을 가져감 -> 다른 모드 해제
+	VP_ON = 0;
+	curveMode = 0;
+
 	//속도 0일시 작동중지
 	if(spdR == 0){
 		motorRun_R = 0;
+		currentAdrR = 0;	// 정지: 유지속도 인덱스도 0으로
 		return;
 	}
-	
+
 	//interrupt.c로 값을 보냄
 	DirR = (spdR >= 0) ? 1 : -1;
 	DelayCntR = (int)(180000.0f/fabsf(spdR));
+
+	// VP 핸드오프용: 현재 속도에 해당하는 Adr 갱신(다음 MoveVP가 이 속도에서 출발)
+	for(i = 0; i < VPNUM; i++){
+		if(VParray[i] <= DelayCntR){ currentAdrR = i; break; }
+	}
 }
 
 
@@ -212,27 +234,35 @@ void MoveVP(float changeVel_L, float changeVel_R){
 	*/
 	int i;
 	VP_ON = 1;
+	curveMode = 0;		// VP가 바퀴 소유권을 가져감
+	motionDone = 0;		// 연속 호출 대비: 이전 done 잔류 제거
+	// Move 분기로 빠졌을 때 '직전 VP 속도 유지'가 동작하도록 motorRun 해제.
+	// (motorRun이 1로 남아 있으면 Move 분기가 stale한 MoveL/R 딜레이를 씀)
+	motorRun_L = 0;
+	motorRun_R = 0;
 	DirL = (changeVel_L >= 0) ? 1 : -1;
 	DirR = (changeVel_R >= 0) ? 1 : -1;
 
-	//Delay값 계산
-	changeDelayL = (int)(180000.0f / fabsf(changeVel_L));
-	changeDelayR = (int)(180000.0f / fabsf(changeVel_R));
-	MACRO_PRINT((tmp_string, "changeDelayR: %d	changeDelayL: %d\r\n", changeDelayR, changeDelayL));
-	
-	//목표값 주소 찾기
-	for(i = 0; i < VPNUM; i++){
-		if (VParray[i] <= changeDelayL){
-			changeAdrL = i; //목표 Adr 구함
-			break;
-		}
-	}	
-	for(i = 0; i < VPNUM; i++){
-		if (VParray[i] <= changeDelayR){
-			changeAdrR = i; //목표 Adr 구함
-			break;
+	//목표값 주소 찾기 (속도 0이면 changeDelay 무한대 -> changeAdr=0(정지)로 처리)
+	if(changeVel_L == 0){
+		changeAdrL = 0;
+	}
+	else{
+		changeDelayL = (int)(180000.0f / fabsf(changeVel_L));
+		for(i = 0; i < VPNUM; i++){
+			if (VParray[i] <= changeDelayL){ changeAdrL = i; break; }
 		}
 	}
+	if(changeVel_R == 0){
+		changeAdrR = 0;
+	}
+	else{
+		changeDelayR = (int)(180000.0f / fabsf(changeVel_R));
+		for(i = 0; i < VPNUM; i++){
+			if (VParray[i] <= changeDelayR){ changeAdrR = i; break; }
+		}
+	}
+	MACRO_PRINT((tmp_string, "changeDelayR: %d	changeDelayL: %d\r\n", changeDelayR, changeDelayL));
 
 	MACRO_PRINT((tmp_string, "currentAdrR: %d	changeAdrR: %d\r\n ", currentAdrR, changeAdrR));
 	MACRO_PRINT((tmp_string, "currentAdrL: %d	changeAdrL: %d\r\n", currentAdrL, changeAdrL));

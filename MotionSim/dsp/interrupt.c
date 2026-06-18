@@ -50,12 +50,17 @@ interrupt void ISRtimer0()
 		//Move() 구현
 	if(!VP_ON && !curveMode){
 
-		if(motorRun_L){
+		// MoveR/MoveL 단독 호출 대비: 이번에 Move로 명령되지 않은 바퀴는
+		// 직전(MoveVP 등) 속도를 유지한다 -> currentAdr 기반으로 DelayCnt 유지.
+		if(!motorRun_L) DelayCntL = VParray[currentAdrL];
+		if(!motorRun_R) DelayCntR = VParray[currentAdrR];
 
+		// 상전환은 양 바퀴 모두 수행. 단 "명령도 없고(currentAdr) 유지속도도 0"이면
+		// 스텝을 내보내지 않아 실제로 정지한다(VParray[0]은 최저속이지 정지가 아님).
+		if(motorRun_L || currentAdrL > 0){
 			//MoveL() 작동위치
 			if(cntL >= (DelayCntL-1)){ //상전환 딜레이 도달
-
-				phaseAdrL = (phaseAdrL + DirR + 4) % 4;
+				phaseAdrL = (phaseAdrL + DirL + 4) % 4;
 				*STEP_PHASE_L = phase[phaseAdrL];
 				cntL = 0;
 			}
@@ -63,11 +68,9 @@ interrupt void ISRtimer0()
 				cntL++;
 			}
 		}
-		if(motorRun_R){
-
+		if(motorRun_R || currentAdrR > 0){
 			//MoveR() 작동 위치
 			if(cntR >= (DelayCntR-1)){ //상전환 딜레이 도달
-				
 				phaseAdrR = (phaseAdrR + DirR + 4) % 4;
 				*STEP_PHASE_R = phase[phaseAdrR];
 				cntR = 0;
@@ -249,6 +252,10 @@ interrupt void ISRtimer0()
 			if((currentAdrO == changeAdrO) && (changeAdrO == 0)){
 				motionDone = 1;
 				curveMode = 0;
+				// 종료 후 ISR은 Move 분기로 빠짐. Move 분기는 currentAdr>0면 계속
+				// 스텝을 내보내므로, 정지 상태를 위해 양 바퀴 속도 인덱스를 0으로 리셋.
+				currentAdrL = 0;
+				currentAdrR = 0;
 			}
 		}
 		// 상전환 딜레이 카운팅 및 다음 상 변경 로직

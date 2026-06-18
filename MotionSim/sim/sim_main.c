@@ -137,6 +137,41 @@ static void scenario_vptest(void)
             currentAdrR, sim_rightSteps);
 }
 
+/* 측정 헬퍼: win tick 동안 양 바퀴 스텝 증가량을 step/s 환산해 출력. */
+static void measure(const char *tag, int win)
+{
+    long l0 = sim_leftSteps, r0 = sim_rightSteps; int k;
+    for (k = 0; k < win; k++) sim_tick();
+    fprintf(stderr, "[sim]   %-22s L=%4ld R=%4ld steps/%dtick  (L~%.0f R~%.0f step/s)\n",
+            tag, sim_leftSteps - l0, sim_rightSteps - r0, win,
+            (sim_leftSteps - l0) * 1e6 / (win * (double)SIM_TICK_US),
+            (sim_rightSteps - r0) * 1e6 / (win * (double)SIM_TICK_US));
+}
+
+/* 팀 요청 구조 유지 버전 검증: MoveVP -> MoveR 단독 -> MoveVP -> 정지.
+ * 기대: 순항 안 끊김 / MoveR 시 L은 360 유지·R만 720 / 이후 둘 다 240으로 감속 / 정지. */
+static void scenario_handoff(void)
+{
+    unsigned long g = 0;
+    fprintf(stderr, "[sim] scenario: handoff  VP(360,360)->R(720)->VP(240,240)->VP(0,0)\n");
+
+    MoveVP(360, 360);
+    while (!motionDone) { sim_tick(); if (++g >= g_max_ticks) break; }
+    fprintf(stderr, "[sim] reached cruise (currentAdrL=%d R=%d)\n", currentAdrL, currentAdrR);
+    measure("cruise hold (both 360)", 100000);   /* 끊기면 R=0 */
+
+    MoveR(720);
+    measure("after MoveR(720)",       100000);   /* L 360 유지, R 720 기대 */
+
+    MoveVP(240, 240);
+    g = 0; while (!motionDone) { sim_tick(); if (++g >= g_max_ticks) break; }
+    measure("after VP(240,240) done", 100000);   /* 둘 다 240 기대 */
+
+    MoveVP(0, 0);
+    g = 0; while (!motionDone) { sim_tick(); if (++g >= g_max_ticks) break; }
+    measure("after VP(0,0) (stop)",   100000);   /* 둘 다 0 기대 */
+}
+
 /* The "Test 03 : MoveVP" sequence active in the uploaded main(). */
 static void scenario_movevp(void)
 {
@@ -302,6 +337,7 @@ int main(int argc, char **argv)
     else if (!strcmp(scenario, "parking")) scenario_parking();
     else if (!strcmp(scenario, "revfwd"))  scenario_revfwd();
     else if (!strcmp(scenario, "vptest"))  scenario_vptest();
+    else if (!strcmp(scenario, "handoff")) scenario_handoff();
     else {
         fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve|parking)\n",
                 scenario);
