@@ -15,8 +15,9 @@
 #define PI 3.141592
 #define VPNUM 3000
 #define EPSILON 0.000001
-#define WHEEL_R 0.05 		// 바퀴의 반지름
-#define WHEEL_BASE 0.11 		// 바퀴 사이의 거리
+#define WHEEL_R 0.0257 		// 바퀴의 반지름
+#define WHEEL_BASE 0.111 		// 바퀴 사이의 거리 -> 왼쪽 끝에서 오른쪽 끝.
+//(중심 - 중심으로 하면 덜 도는 문제 있음. 호 길이 R*theta에서 회전 반경 R은 결국 기구가 그리는 호의 길이이니 끝 - 끝이 맞는듯.)
 #define STEP_DIST (WHEEL_R * (1.8 / 180.0 * PI))  // 스텝당 이동거리 -> r * theta = r * 1.8/180*PI (rad 환산)  
 
 #define DBGV2(a,b) \
