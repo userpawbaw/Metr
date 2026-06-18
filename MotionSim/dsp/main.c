@@ -302,10 +302,13 @@ int volatile changeStepDiff;			// interrupt에 보내줄 목표step차
 int volatile currentStepDiff; 		// interrupt에서 매번 갱신할 현재Step차
 int stepCntRst;				// 양 바퀴 step차 계산용 stepCnt 초기화신호
 
-float curveAccumErr = 0.0f;	// 각도->스텝 변환의 누적 소수부 오차(서브스텝). 호출 간 유지.
+// 각도->스텝 변환의 누적 소수부 오차(서브스텝). 호출 간 유지.
+// 0.5로 시작 = 누적합을 floor가 아닌 '반올림'하게 만들어 장기 드리프트를 없앰
+// (floor면 90도에서 ~1스텝 부족, round면 거의 정확).
+float curveAccumErr = 0.5f;
 
 void ResetCurveErr(){		// 새 회전 시퀀스를 절대 기준으로 다시 시작하고 싶을 때 호출
-	curveAccumErr = 0.0f;
+	curveAccumErr = 0.5f;
 }
 
 void ResetStepCount(){

@@ -13,8 +13,8 @@
 #ifndef SIM_PI
 #define SIM_PI        3.141592
 #endif
-#define SIM_WHEEL_R    0.05                                   /* wheel radius [m]      */
-#define SIM_WHEEL_BASE 0.11                                   /* track width [m]       */
+#define SIM_WHEEL_R    0.0257                                 /* wheel radius [m]  (mirror dsp/main.c) */
+#define SIM_WHEEL_BASE 0.111                                  /* track width [m], end-to-end (mirror dsp/main.c) */
 #define SIM_STEP_DIST  (SIM_WHEEL_R * (1.8 / 180.0 * SIM_PI)) /* metres per 1.8deg step */
 
 /* ISR period. TIMER_FRQ=100kHz on the board => 10 us per tick. */

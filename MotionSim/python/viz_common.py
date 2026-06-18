@@ -9,8 +9,8 @@ import pandas as pd
 
 # Mirror dsp/main.c
 PI         = 3.141592
-WHEEL_R    = 0.05
-WHEEL_BASE = 0.11
+WHEEL_R    = 0.0257
+WHEEL_BASE = 0.111
 STEP_DIST  = WHEEL_R * (1.8 / 180.0 * PI)   # metres per 1.8 deg step
 
 
