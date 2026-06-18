@@ -237,16 +237,14 @@ interrupt void ISRtimer0()
 			currentStepDiff = stepCountR - stepCountL;
 
 			remainDiff = abs(changeStepDiff) - abs(currentStepDiff);
-			brakeDiff = currentAdrO * (ratio_num - ratio_den) / ratio_num;
 
-			if(brakeDiff < 1){ 
-				// 
-				brakeDiff = 1;
-			}
-
-			// 감속 시작
-			if((remainDiff <= brakeDiff)){
-				changeAdrO = 0; // 
+			// 감속 시작 조건: remainDiff <= currentAdrO*(num-den)/num
+			// C6701은 정수 나눗셈 HW가 없어 /ratio_num이 라이브러리 호출(수십 cycle)이 됨.
+			// -> 비교식 양변에 ratio_num(>0)을 곱해 나눗셈 제거(정수 곱 2번 + 비교).
+			//    원래의 if(brakeDiff<1)brakeDiff=1 클램프는 (remainDiff<=1) 항으로 보존(정수 등가).
+			brakeDiff = currentAdrO * (ratio_num - ratio_den);	// 디버그/로그용(분자, 나눗셈 없음)
+			if( (remainDiff <= 1) || (remainDiff * ratio_num <= brakeDiff) ){
+				changeAdrO = 0;
 			}
 
 			// 종료: ISR 자체 종료
