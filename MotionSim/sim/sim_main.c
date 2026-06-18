@@ -35,6 +35,7 @@ extern void MoveVP(float changeVel_L, float changeVel_R);
 extern void MoveL(float spdL);
 extern void MoveR(float spdR);
 extern void MoveCurveRatio(float angle, int num, int den, float vmax);
+extern float curveAccumErr;   /* 각도->스텝 변환 누적 소수부 오차(main.c) */
 
 /* Safety cap so a never-completing motion (a real bug worth catching) cannot
  * hang the simulator. Configurable via --max-ms. */
@@ -203,6 +204,7 @@ static void scenario_movevp(void)
 static void run_curve_segment(float angle, int num, int den, float vmax)
 {
     unsigned long guard = 0;
+    long pl0 = sim_leftSteps, pr0 = sim_rightSteps;   /* 이 세그먼트의 물리 step 기준점 */
 
     MoveCurveRatio(angle, num, den, vmax);
     fprintf(stderr, "[sim] segment angle=%.0f vmax=%.0f  isOuterRight=%d "
@@ -227,9 +229,11 @@ static void run_curve_segment(float angle, int num, int den, float vmax)
     }
 
     fprintf(stderr, "[sim]   -> done: theta=%.2f deg  curveMode=%d  "
-                    "leftSteps=%ld rightSteps=%ld\n",
+                    "fw stepDiff=%d/target%d  physical stepDiff=%ld  curveAccumErr=%.3f\n",
             sim_theta * 180.0 / SIM_PI, curveMode,
-            sim_leftSteps, sim_rightSteps);
+            currentStepDiff, changeStepDiff,
+            (sim_rightSteps - pr0) - (sim_leftSteps - pl0),
+            curveAccumErr);
 }
 
 /* The curve / Bresenham test that was commented out in main(). */

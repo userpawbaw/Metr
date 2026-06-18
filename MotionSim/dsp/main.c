@@ -302,39 +302,53 @@ int volatile changeStepDiff;			// interrupt에 보내줄 목표step차
 int volatile currentStepDiff; 		// interrupt에서 매번 갱신할 현재Step차
 int stepCntRst;				// 양 바퀴 step차 계산용 stepCnt 초기화신호
 
+float curveAccumErr = 0.0f;	// 각도->스텝 변환의 누적 소수부 오차(서브스텝). 호출 간 유지.
+
+void ResetCurveErr(){		// 새 회전 시퀀스를 절대 기준으로 다시 시작하고 싶을 때 호출
+	curveAccumErr = 0.0f;
+}
+
 void ResetStepCount(){
 	stepCntRst = 1;
 }
 
 
-int AngleToDiffStep(float angle){ 	
+int AngleToDiffStep(float angle){
 // 헤딩 회전 각도를 받아서 그 각도로 향하기 위한 바퀴간의 스텝 차이로 환산해주는 함수
 // 용도: AngleToDiffStep(90.0) => 110 -> stepCountR-stepCountL = 110이어야 90도.
 	float theta;
 	float diffDist;
+	float value;		// 이 각도에 필요한 '실수' 스텝차
+	float ip, carry;	// 정수부 / 누적오차의 보정(정수)분
 	int targetDiffStep;
-	
-	
+
+
 	theta = PI * angle / 180.0f; // rad 단위
-	
-	// 헤딩이 +90도 회전 -> 오른쪽 바퀴가 더 움직임 
-	// 오른쪽이 더 이동할 거리: 
+
+	// 헤딩이 +90도 회전 -> 오른쪽 바퀴가 더 움직임
+	// 오른쪽이 더 이동할 거리:
 	// 왼쪽 바퀴 정지시 -> 왼쪽은 이동거리 0, 오른쪽은 r*theta
 	// => 이동거리 = 양 바퀴 거리 * 회전할 각도 = WHEEL_BASE * PI/2.
-	
+
 	// diffDist = 오른쪽 이동거리 - 왼쪽 이동거리. 양수면 +, 음수면 -방향 회전.
-	
+
 	// 왼쪽 바퀴가 움직이는 경우엔?
-	// 같은 스텝만큼 움직이면 회전 x. 즉 동일 스텝차 -> 동일 각도 회전. 
+	// 같은 스텝만큼 움직이면 회전 x. 즉 동일 스텝차 -> 동일 각도 회전.
 	// => 느린바퀴 이동과 무관하게 회전각도는 위의 식 그대로 사용하면 됨.
-	
+
 	// 최종적으로 리턴할 스텝차이 targetDiffStep = 이동거리 차/step당 거리 =  diffDist / STEP_DIST.
-	
+
 	diffDist = WHEEL_BASE * theta;
-	DBGF2(diffDist, STEP_DIST);
-	DBGF2(diffDist / STEP_DIST, theta / PI);
-	targetDiffStep = (int)(diffDist / STEP_DIST + 0.5f);  // +0.5 -> 반올림 처리 가능
-	
+	value = diffDist / STEP_DIST;
+
+	// (int)(value+0.5) 단순 반올림은 매 호출 소수부를 버리므로, 같은 각도를 여러 번 주면
+	// 오차가 매번 같은 방향으로 누적되어 90도에서 어긋남.
+	// -> 이번 호출의 소수부를 curveAccumErr에 누적하고, 1스텝 이상 쌓이면 보정 스텝으로 방출.
+	//    (이미 쓰는 Bresenham과 같은 오차피드백 방식. modff: 정수부/소수부 분리.)
+	curveAccumErr += modff(value, &ip);       // ip=정수부, 반환=소수부
+	curveAccumErr  = modff(curveAccumErr, &carry); // carry=누적오차의 정수부(보정), 나머지는 유지
+	targetDiffStep = (int)ip + (int)carry;
+
 	return targetDiffStep;
 }
 
