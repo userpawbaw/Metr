@@ -107,6 +107,36 @@ void WaitMotionDone(int currentAdrR, int changeAdrR)
 /* Scenarios                                                                 */
 /* ======================================================================== */
 
+/* 사용자가 보고한 대칭 케이스: MoveVP(360,360); wait; MoveVP(0,0) -> 가속 후 감속을
+ * 기대. 순항 도달 시점의 동작을 관찰하기 위한 디버그 시나리오. */
+static void scenario_vptest(void)
+{
+    unsigned long g = 0;
+    fprintf(stderr, "[sim] scenario: vptest  MoveVP(360,360) -> hold -> MoveVP(0,0)\n");
+
+    MoveVP(360, 360);
+    /* 순항 도달(=motionDone) 까지 대기 */
+    while (!motionDone) { sim_tick(); if (++g >= g_max_ticks) break; }
+    fprintf(stderr, "[sim] reached cruise: currentAdrR=%d changeAdrR=%d VP_ON=%d "
+                    "(t=%.0fms, rightSteps=%ld)\n",
+            currentAdrR, changeAdrR, VP_ON, sim_time_us/1000.0, sim_rightSteps);
+
+    /* 순항을 유지해야 하는 구간: 추가로 1초(100k tick) 돌리며 스텝이 계속 나오는지 확인 */
+    {
+        long rs0 = sim_rightSteps; int k;
+        for (k = 0; k < 100000; k++) sim_tick();
+        fprintf(stderr, "[sim] after +1s hold: dRight=%ld  (0이면 순항이 멈춰버린 것=버그)"
+                        "  VP_ON=%d motorRun_R=%d\n",
+                sim_rightSteps - rs0, VP_ON, motorRun_R);
+    }
+
+    MoveVP(0, 0);
+    g = 0;
+    while (!motionDone) { sim_tick(); if (++g >= g_max_ticks) break; }
+    fprintf(stderr, "[sim] after MoveVP(0,0): currentAdrR=%d rightSteps=%ld\n",
+            currentAdrR, sim_rightSteps);
+}
+
 /* The "Test 03 : MoveVP" sequence active in the uploaded main(). */
 static void scenario_movevp(void)
 {
@@ -271,6 +301,7 @@ int main(int argc, char **argv)
     else if (!strcmp(scenario, "curve"))   scenario_curve();
     else if (!strcmp(scenario, "parking")) scenario_parking();
     else if (!strcmp(scenario, "revfwd"))  scenario_revfwd();
+    else if (!strcmp(scenario, "vptest"))  scenario_vptest();
     else {
         fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve|parking)\n",
                 scenario);
