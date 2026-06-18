@@ -49,14 +49,18 @@ interrupt void ISRtimer0()
 	*DOUT0 = ~(*DOUT0); 
 		//Move() 구현
 	if(!VP_ON && !curveMode){
-
-		// MoveR/MoveL 단독 호출 대비: 이번에 Move로 명령되지 않은 바퀴는
-		// 직전(MoveVP 등) 속도를 유지한다 -> currentAdr 기반으로 DelayCnt 유지.
+		// 수정사항: moveVP(360,360);waitTFlag(1e5);moveVP(0,0)에서 발생했던 문제 수정
+		// 가속 후 감속을 기대했는데 중간이 잘린 듯이 가속 후 갑자기 정지했다가 다시 최대속도로 돌아가서 감속하는 문제
+		// -> 가속 후 VP_ON을 꺼버려서 CV모드로 들어가 버려 정지해버렸던 문제임.
+		// 해결 : ISR에서 VP_ON 등을 건들지 않고, main의 각 이동 관련 함수들에서 VP_ON, curveMode 등을 꺼서 모드가 넘어가지 않게 수정.
+		
+		// if(motorRun_R) {phaseAdrR= .... 코드는 }moveVP 뒤에 MoveR/L만 단독으로 사용될 경우 다른 한쪽은 그냥 정지해버리는 문제 있음   
+		// 직전(MoveVP 등) 속도를 유지하게 수정 -> currentAdr 기반으로 DelayCnt 유지.
 		if(!motorRun_L) DelayCntL = VParray[currentAdrL];
 		if(!motorRun_R) DelayCntR = VParray[currentAdrR];
 
-		// 상전환은 양 바퀴 모두 수행. 단 "명령도 없고(currentAdr) 유지속도도 0"이면
-		// 스텝을 내보내지 않아 실제로 정지한다(VParray[0]은 최저속이지 정지가 아님).
+		// moveR or L 중 하나만 실행되면 나머지는 이전 moveVP에서의 delay값 찾아 유지. 
+		// 즉 phaseAdr 변경 로직 자체는 둘 다 항상 돌아감.
 		if(motorRun_L || currentAdrL > 0){
 			//MoveL() 작동위치
 			if(cntL >= (DelayCntL-1)){ //상전환 딜레이 도달
@@ -114,7 +118,6 @@ interrupt void ISRtimer0()
 				else{// 같으면 Adr 변경 x, 딜레이 유지
 					motionDone = 	(currentAdrL == changeAdrL) && 
 									(currentAdrR == changeAdrR);
-					VP_ON = !motionDone;
 				}
 				DelayCntL = VParray[currentAdrL];
 			}
@@ -164,7 +167,6 @@ interrupt void ISRtimer0()
 				else{// 같으면 Adr 변경 x, 딜레이 유지
 					motionDone = 	(currentAdrL == changeAdrL) && 
 									(currentAdrR == changeAdrR);
-					VP_ON = !motionDone;
 				}
 				DelayCntR = VParray[currentAdrR];
 			}
@@ -247,13 +249,11 @@ interrupt void ISRtimer0()
 				changeAdrO = 0; // 
 			}
 
-			// 종료: ISR 자체 종료(VP_ON 패턴과 동일하게 ISR이 curveMode를 내림).
+			// 종료: ISR 자체 종료
 			// caller는 MoveCurveRatio(); while(!motionDone); 만으로 사용 가능.
 			if((currentAdrO == changeAdrO) && (changeAdrO == 0)){
 				motionDone = 1;
-				curveMode = 0;
-				// 종료 후 ISR은 Move 분기로 빠짐. Move 분기는 currentAdr>0면 계속
-				// 스텝을 내보내므로, 정지 상태를 위해 양 바퀴 속도 인덱스를 0으로 리셋.
+				// 종료 후 ISR은 다음 명령 인가 전까지 curveMode=1 상태 유지. 
 				currentAdrL = 0;
 				currentAdrR = 0;
 			}
@@ -261,9 +261,9 @@ interrupt void ISRtimer0()
 		// 상전환 딜레이 카운팅 및 다음 상 변경 로직
 		//////////  Outer //////////
 		if((changeAdrO == 0) && (currentAdrO == 0)){
-			// 목표 도달 후 adr=0까지 감속 완료 -> 펄스 발생 정지(VP 모드와 동일한 정지 가드).
-			// currentAdrO=0은 정지가 아니라 VParray[0](최저속)이므로, 가드가 없으면
-			// 바깥바퀴가 최저속으로 계속 상전환하여 멈추지 않음.
+			// 목표 도달 후 adr=0까지 감속 완료 -> 상전환 딜레이 cnt 정지(VP 모드와 동일).
+			// currentAdrO=0은 정지가 아니라 VParray[0](최저속)이므로, 그냥 Adr == 0이면
+			// 바깥바퀴가 최저속으로 계속 상전환하여 안 멈춤.
 			cntO = 0;
 		}
 		else if(cntO >= (DelayCntO-1)){ // 상전환 딜레이 도달
