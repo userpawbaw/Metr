@@ -321,8 +321,8 @@ int AngleToDiffStep(float angle){
 // 용도: AngleToDiffStep(90.0) => 110 -> stepCountR-stepCountL = 110이어야 90도.
 	float theta;
 	float diffDist;
-	float value;		// 이 각도에 필요한 '실수' 스텝차
-	float ip, carry;	// 정수부 / 누적오차의 보정(정수)분
+	float value;		// 이 각도에 필요한 스텝차(실수)
+	float v_int, acc_frac;	// 정수부 / 누적오차의 보정용
 	int targetDiffStep;
 
 
@@ -343,14 +343,15 @@ int AngleToDiffStep(float angle){
 
 	diffDist = WHEEL_BASE * theta;
 	value = diffDist / STEP_DIST;
-
+	// 기존: targetDiffStep = (int)(diffDist / STEP_DIST + 0.5f)
 	// (int)(value+0.5) 단순 반올림은 매 호출 소수부를 버리므로, 같은 각도를 여러 번 주면
-	// 오차가 매번 같은 방향으로 누적되어 90도에서 어긋남.
+	// 오차가 매번 같은 방향으로 누적되어 90도에서 어굿나는 문제 있었음(발표 마지막 시연 영상의 오차의 주 원인으로 예상)
 	// -> 이번 호출의 소수부를 curveAccumErr에 누적하고, 1스텝 이상 쌓이면 보정 스텝으로 방출.
-	//    (이미 쓰는 Bresenham과 같은 오차피드백 방식. modff: 정수부/소수부 분리.)
-	curveAccumErr += modff(value, &ip);       // ip=정수부, 반환=소수부
-	curveAccumErr  = modff(curveAccumErr, &carry); // carry=누적오차의 정수부(보정), 나머지는 유지
-	targetDiffStep = (int)ip + (int)carry;
+	// modff는 math.h 함수로, float 함수의 정수부, 소수부를 분리하는 가장 최적의 알고리즘이라고 함. \
+	// (기존 / 연산도 더 적절한 방식으로 최적화된다고 함!)
+	curveAccumErr += modff(value, &v_int);       // ip=정수부, 반환=소수부
+	curveAccumErr  = modff(curveAccumErr, &acc_frac); // carry=누적오차의 정수부(보정), 나머지는 유지
+	targetDiffStep = (int)v_int + (int)acc_frac;
 
 	return targetDiffStep;
 }
