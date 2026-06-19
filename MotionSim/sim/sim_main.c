@@ -290,7 +290,7 @@ static void scenario_usertraj(void)
     run_curve_segment(60, 3, 2,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
     run_curve_segment(60, 3, 2, -720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
     run_curve_segment(45, 7, 5,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
-    run_curve_segment(45, 7, 5,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(45, 7, 5, -720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
 
     fprintf(stderr, "[sim] usertraj final: theta=%.2f deg  x=%.4f y=%.4f\n",
             sim_theta * 180.0 / SIM_PI, sim_x, sim_y);
