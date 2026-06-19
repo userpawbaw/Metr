@@ -280,6 +280,22 @@ static void scenario_parking(void)
             sim_theta * 180.0 / SIM_PI);
 }
 
+/* 사용자 실측 시퀀스 재현: 각 세그먼트 사이 0.3*1e5 tick(300ms) 정지 포함. */
+static void scenario_usertraj(void)
+{
+    fprintf(stderr, "[sim] scenario: usertraj (user-supplied curve sequence)\n");
+
+    run_curve_segment(90, 2, 1,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(60, 3, 2, -720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(60, 3, 2,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(60, 3, 2, -720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(45, 7, 5,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+    run_curve_segment(45, 7, 5,  720); WaitTFlagCnt((unsigned int)(1e5 * 0.3));
+
+    fprintf(stderr, "[sim] usertraj final: theta=%.2f deg  x=%.4f y=%.4f\n",
+            sim_theta * 180.0 / SIM_PI, sim_x, sim_y);
+}
+
 /* ======================================================================== */
 /* main                                                                      */
 /* ======================================================================== */
@@ -342,6 +358,7 @@ int main(int argc, char **argv)
     else if (!strcmp(scenario, "revfwd"))  scenario_revfwd();
     else if (!strcmp(scenario, "vptest"))  scenario_vptest();
     else if (!strcmp(scenario, "handoff")) scenario_handoff();
+    else if (!strcmp(scenario, "usertraj")) scenario_usertraj();
     else {
         fprintf(stderr, "[sim] unknown scenario '%s' (use movevp|curve|parking)\n",
                 scenario);
