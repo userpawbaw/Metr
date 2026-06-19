@@ -24,66 +24,92 @@ def arc_pts(cx, cy, r, a0, a1, n=200):
     return cx + r*np.cos(a), cy + r*np.sin(a)
 
 
+def _rectpoly(c, along, across, L, W):
+    c = np.asarray(c, float)
+    return np.array([c + s1*L/2*along + s2*W/2*across
+                     for s1, s2 in [(1, 1), (1, -1), (-1, -1), (-1, 1)]])
+
+
+def _units(a_deg):
+    ar = np.radians(a_deg)
+    rad = np.array([np.cos(ar), np.sin(ar)])      # 반경 바깥방향(= 차축 방향)
+    head = np.array([-np.sin(ar), np.cos(ar)])    # 접선/진행방향(CCW)
+    return rad, head
+
+
+def mouse_on_arc(ax, R, base, a, alpha=1.0, body_c="#d9e6f2", edge="#33536e",
+                 label=False):
+    """반경 R(안쪽)·R+base(바깥쪽) 호 위, 중심각 a 위치에 마이크로마우스 배치.
+    안쪽 바퀴는 s_L 호, 바깥쪽 바퀴는 s_R 호에 정확히 놓인다."""
+    Rout = R + base
+    rad, head = _units(a)
+    inner, outer, mid = R*rad, Rout*rad, (R+Rout)/2*rad
+    ax.add_patch(Polygon(_rectpoly(mid, head, rad, 0.95, base*0.9), closed=True,
+                 facecolor=body_c, edgecolor=edge, lw=1.4, alpha=alpha, zorder=5,
+                 joinstyle="round"))
+    for c, col in ((inner, RED), (outer, BLUE)):
+        ax.add_patch(Polygon(_rectpoly(c, head, rad, 0.6, 0.2), closed=True,
+                     facecolor=col, edgecolor="k", lw=1.0, alpha=alpha, zorder=7))
+    ax.add_patch(FancyArrowPatch(mid, mid + 0.9*head, arrowstyle="-|>",
+                 mutation_scale=15, color="#222", lw=1.8, alpha=alpha, zorder=8))
+    if label:
+        ax.annotate("안쪽 바퀴\n($s_L$ 호)", inner, textcoords="offset points",
+                    xytext=(-58, -30), color=RED, fontsize=11, ha="center",
+                    arrowprops=dict(arrowstyle="->", color=RED, lw=1.2))
+        ax.annotate("바깥쪽 바퀴\n($s_R$ 호)", outer, textcoords="offset points",
+                    xytext=(58, 16), color=BLUE, fontsize=11, ha="center",
+                    arrowprops=dict(arrowstyle="->", color=BLUE, lw=1.2))
+
+
 # ============================================================ Fig 1: arc model
 def fig_model():
-    fig, ax = plt.subplots(figsize=(7.2, 6.4))
+    fig, ax = plt.subplots(figsize=(7.6, 7.0))
     O = (0.0, 0.0)
-    R, base = 3.0, 1.4          # inner radius, wheel base (radial gap)
-    a0, a1 = 18.0, 78.0          # swept angle (theta)
-    Rin, Rout = R, R + base
+    R, base = 3.0, 1.3
+    a0, a1 = 16.0, 74.0
+    Rout = R + base
 
-    # filled slice
-    ax.add_patch(Wedge(O, Rout, a0, a1, width=base, facecolor="#eaf2fb",
+    ax.add_patch(Wedge(O, Rout, a0, a1, width=base, facecolor="#eef4fb",
                        edgecolor="none", zorder=0))
+    ax.plot(*arc_pts(*O, R,    a0, a1), color=RED,  lw=3, zorder=2)   # s_L
+    ax.plot(*arc_pts(*O, Rout, a0, a1), color=BLUE, lw=3, zorder=2)   # s_R
 
-    # two arcs (wheel paths)
-    ax.plot(*arc_pts(*O, Rin,  a0, a1), color=RED,  lw=3, zorder=3)   # inner s_L
-    ax.plot(*arc_pts(*O, Rout, a0, a1), color=BLUE, lw=3, zorder=3)   # outer s_R
+    for a in (a0, a1):
+        rad, _ = _units(a)
+        ax.plot([0, Rout*rad[0]], [0, Rout*rad[1]], color=GRAY, lw=1.1, ls="--",
+                zorder=1)
+    mouse_on_arc(ax, R, base, a0, alpha=0.45)
+    mouse_on_arc(ax, R, base, a1, alpha=1.0, label=True)
 
-    # two radii (robot axle at start and end)
-    for a, lab in ((a0, "start"), (a1, "end")):
-        xi, yi = Rin*np.cos(np.radians(a)),  Rin*np.sin(np.radians(a))
-        xo, yo = Rout*np.cos(np.radians(a)), Rout*np.sin(np.radians(a))
-        ax.plot([0, xo], [0, yo], color=GRAY, lw=1.2, ls="--", zorder=1)
-        # axle (the robot) = segment between the two wheels
-        ax.plot([xi, xo], [yi, yo], color="k", lw=4, solid_capstyle="round", zorder=4)
-        ax.plot(xi, yi, "o", color=RED,  ms=9, zorder=5)
-        ax.plot(xo, yo, "o", color=BLUE, ms=9, zorder=5)
-
-    # theta arc at O
-    ax.add_patch(Arc(O, 2.0, 2.0, angle=0, theta1=a0, theta2=a1,
-                     color="k", lw=1.5))
+    ax.add_patch(Arc(O, 2.1, 2.1, theta1=a0, theta2=a1, color="k", lw=1.5))
     am = np.radians((a0+a1)/2)
-    ax.annotate(r"$\theta$", (1.15*np.cos(am), 1.15*np.sin(am)),
-                fontsize=16, ha="center", va="center")
+    ax.annotate(r"$\theta$", (1.25*np.cos(am), 1.25*np.sin(am)), fontsize=17,
+                ha="center", va="center")
     ax.plot(*O, "ko", ms=6)
-    ax.annotate("O\n(회전 중심)", O, textcoords="offset points",
-                xytext=(-6, -18), ha="center", color="k")
-
-    # radius label R (on start radius, inner part)
-    am0 = np.radians(a0)
-    ax.annotate(r"$R$", (0.5*Rin*np.cos(am0)-0.15, 0.5*Rin*np.sin(am0)),
-                color=GRAY, ha="right")
-
-    # arc length labels
-    xm_i, ym_i = arc_pts(*O, Rin,  (a0+a1)/2, (a0+a1)/2, 1)
-    xm_o, ym_o = arc_pts(*O, Rout, (a0+a1)/2, (a0+a1)/2, 1)
-    ax.annotate(r"$s_L$  (안쪽 바퀴)", (xm_i[0], ym_i[0]),
-                textcoords="offset points", xytext=(8, -2), color=RED, fontsize=12)
-    ax.annotate(r"$s_R$  (바깥쪽 바퀴)", (xm_o[0], ym_o[0]),
-                textcoords="offset points", xytext=(8, 4), color=BLUE, fontsize=12)
-
-    # base_L bracket on the 'end' axle
-    ax.annotate(r"$base_L$", ((Rin+Rout)/2*np.cos(np.radians(a1)) - 0.1,
-                              (Rin+Rout)/2*np.sin(np.radians(a1)) + 0.15),
-                color="k", ha="right", fontsize=12)
+    ax.annotate("O  (회전 중심)", O, textcoords="offset points", xytext=(8, -16),
+                ha="left")
+    rad0, _ = _units(a0)
+    ax.annotate(r"$R$", (0.55*R*rad0[0]+0.12, 0.55*R*rad0[1]-0.05), color=GRAY)
+    p_in, p_out = R*rad0, Rout*rad0
+    ax.annotate("", p_out, p_in, arrowprops=dict(arrowstyle="<->", color="k",
+                lw=1.4))
+    mid0 = (p_in+p_out)/2
+    ax.annotate(r"$base_L$", (mid0[0]-0.12, mid0[1]), color="k", ha="right",
+                fontsize=12)
+    xi, yi = arc_pts(*O, R,    (a0+a1)/2+6, (a0+a1)/2+6, 1)
+    xo, yo = arc_pts(*O, Rout, (a0+a1)/2-6, (a0+a1)/2-6, 1)
+    ax.annotate(r"$s_L$ (안쪽 호)", (xi[0], yi[0]), color=RED, fontsize=12,
+                ha="center")
+    ax.annotate(r"$s_R$ (바깥쪽 호)", (xo[0], yo[0]), color=BLUE, fontsize=12,
+                ha="center")
 
     ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title("차동구동 회전: 두 호가 같은 중심각 " r"$\theta$" "를 공유",
-                 fontsize=13)
-    ax.set_xlim(-1.2, Rout+0.6); ax.set_ylim(-0.8, Rout+0.6)
+    ax.set_title("차동구동 회전 — 두 바퀴가 같은 중심각 " r"$\theta$" "를\n"
+                 "공유하는 두 호를 그린다", fontsize=13)
+    ax.set_xlim(-1.3, Rout+0.7); ax.set_ylim(-0.9, Rout+0.8)
     fig.tight_layout(); fig.savefig(f"{OUT}/fig1_arc_model.png", dpi=150)
     plt.close(fig)
+
 
 
 # ====================================================== Fig 2: theta derivation
@@ -101,6 +127,8 @@ def fig_derivation():
     for a in (a0, a1):
         xo, yo = Rout*np.cos(np.radians(a)), Rout*np.sin(np.radians(a))
         ax.plot([0, xo], [0, yo], color=GRAY, lw=1.2, ls="--")
+    mouse_on_arc(ax, R, base, a0, alpha=0.45)     # 시작 자세
+    mouse_on_arc(ax, R, base, a1, alpha=1.0)      # 최종 자세
     ax.add_patch(Arc(O, 1.6, 1.6, theta1=a0, theta2=a1, color="k", lw=1.5))
     am = np.radians((a0+a1)/2)
     ax.annotate(r"$\theta$", (0.95*np.cos(am), 0.95*np.sin(am)), fontsize=15,
@@ -132,12 +160,6 @@ def fig_derivation():
 
 
 # ======================================================= Fig 3: special cases
-def _rectpoly(c, along, across, L, W):
-    c = np.asarray(c, float)
-    return np.array([c + s1*L/2*along + s2*W/2*across
-                     for s1, s2 in [(1, 1), (1, -1), (-1, -1), (-1, 1)]])
-
-
 def mouse_sc(ax, center, heading_deg, base=1.1, alpha=1.0, body_c="#d9e6f2",
              edge="#33536e", wL=RED, wR=BLUE, arrow=True):
     """마이크로마우스(섀시+양 바퀴+진행화살표). center=차축 중점, heading=진행방향."""
@@ -186,9 +208,9 @@ def fig_special():
     ax.add_patch(FancyArrowPatch((rr*np.sin(phi[-2]), rr*np.cos(phi[-2])),
                  (rr*np.sin(phi[-1]), rr*np.cos(phi[-1])), arrowstyle="-|>",
                  mutation_scale=14, color=GRAY, lw=1.4))      # 시계방향 표시
-    # 시작(검정, 12시) / 최종(초록, 4시=heading -30deg)
+    # 시작 / 최종 둘 다 alpha=0.5 (겹쳐도 둘 다 보이게)
     mouse_sc(ax, O, 90, base=BASE, alpha=0.5)
-    mouse_sc(ax, O, 90 - 120, base=BASE, body_c="#dff0e4", edge=GREEN)
+    mouse_sc(ax, O, 90 - 120, base=BASE, alpha=0.5, body_c="#dff0e4", edge=GREEN)
     ax.plot(*O, "ko", ms=5, zorder=9)
     # 바퀴 속도 방향(L=+V 전진, R=-V 후진) -> 시계방향
     ax.add_patch(FancyArrowPatch((-BASE/2, -0.18), (-BASE/2, 0.55),
