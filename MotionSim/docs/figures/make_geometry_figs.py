@@ -175,19 +175,20 @@ def fig_special():
     ax.set_title("(1) 직진", fontsize=12)
     ax.set_xlim(-1.7, 1.7); ax.set_ylim(-1.1, 3.0)
 
-    # ---------------- (2) 제자리 회전 : 시계방향 210도 ----------------
+    # ---------------- (2) 제자리 회전 : 시계방향 120도 ----------------
     ax = axes[1]
     O = np.array([0.0, 0.0])
     rr = 1.45
-    # 궤적 점선: 12시(0도)에서 시계방향 210도(7시)까지.  clock->xy: x=rr sin, y=rr cos
-    phi = np.radians(np.linspace(0, 210, 160))
+    # 궤적 점선: 12시(0도)에서 시계방향 120도(4시)까지.  clock->xy: x=rr sin, y=rr cos
+    # (180도를 넘기면 좌/우 바퀴가 뒤바뀌어 보이므로 120도로 둔다)
+    phi = np.radians(np.linspace(0, 120, 120))
     ax.plot(rr*np.sin(phi), rr*np.cos(phi), color=GRAY, lw=1.3, ls="--")
     ax.add_patch(FancyArrowPatch((rr*np.sin(phi[-2]), rr*np.cos(phi[-2])),
                  (rr*np.sin(phi[-1]), rr*np.cos(phi[-1])), arrowstyle="-|>",
                  mutation_scale=14, color=GRAY, lw=1.4))      # 시계방향 표시
-    # 시작(검정, 12시) / 최종(초록, 7시=heading -120deg)
+    # 시작(검정, 12시) / 최종(초록, 4시=heading -30deg)
     mouse_sc(ax, O, 90, base=BASE, alpha=0.5)
-    mouse_sc(ax, O, 90 - 210, base=BASE, body_c="#dff0e4", edge=GREEN)
+    mouse_sc(ax, O, 90 - 120, base=BASE, body_c="#dff0e4", edge=GREEN)
     ax.plot(*O, "ko", ms=5, zorder=9)
     # 바퀴 속도 방향(L=+V 전진, R=-V 후진) -> 시계방향
     ax.add_patch(FancyArrowPatch((-BASE/2, -0.18), (-BASE/2, 0.55),
