@@ -5,10 +5,16 @@ labels: math/English (Korean fonts unavailable). Outputs PNGs in this dir.
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Wedge, FancyArrowPatch, Arc
-import os
+import matplotlib.font_manager as fm
+import glob, os
 
 OUT = os.path.dirname(os.path.abspath(__file__))
-plt.rcParams.update({"font.size": 12, "axes.linewidth": 1.0})
+for p in glob.glob("/usr/share/fonts/truetype/nanum/NanumGothic.ttf") + \
+         glob.glob(os.path.expanduser("~/.fonts/NanumGothic.ttf")):
+    try: fm.fontManager.addfont(p)
+    except Exception: pass
+plt.rcParams.update({"font.size": 12, "axes.linewidth": 1.0,
+                     "font.family": "NanumGothic", "axes.unicode_minus": False})
 
 BLUE, RED, GRAY, GREEN = "#1f6fb2", "#c0392b", "#888888", "#27a35b"
 
@@ -51,7 +57,7 @@ def fig_model():
     ax.annotate(r"$\theta$", (1.15*np.cos(am), 1.15*np.sin(am)),
                 fontsize=16, ha="center", va="center")
     ax.plot(*O, "ko", ms=6)
-    ax.annotate("O\n(rotation center)", O, textcoords="offset points",
+    ax.annotate("O\n(회전 중심)", O, textcoords="offset points",
                 xytext=(-6, -18), ha="center", color="k")
 
     # radius label R (on start radius, inner part)
@@ -62,9 +68,9 @@ def fig_model():
     # arc length labels
     xm_i, ym_i = arc_pts(*O, Rin,  (a0+a1)/2, (a0+a1)/2, 1)
     xm_o, ym_o = arc_pts(*O, Rout, (a0+a1)/2, (a0+a1)/2, 1)
-    ax.annotate(r"$s_L$  (inner wheel)", (xm_i[0], ym_i[0]),
+    ax.annotate(r"$s_L$  (안쪽 바퀴)", (xm_i[0], ym_i[0]),
                 textcoords="offset points", xytext=(8, -2), color=RED, fontsize=12)
-    ax.annotate(r"$s_R$  (outer wheel)", (xm_o[0], ym_o[0]),
+    ax.annotate(r"$s_R$  (바깥쪽 바퀴)", (xm_o[0], ym_o[0]),
                 textcoords="offset points", xytext=(8, 4), color=BLUE, fontsize=12)
 
     # base_L bracket on the 'end' axle
@@ -73,8 +79,8 @@ def fig_model():
                 color="k", ha="right", fontsize=12)
 
     ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title("Differential-drive turn: two arcs share the center angle "
-                 r"$\theta$", fontsize=13)
+    ax.set_title("차동구동 회전: 두 호가 같은 중심각 " r"$\theta$" "를 공유",
+                 fontsize=13)
     ax.set_xlim(-1.2, Rout+0.6); ax.set_ylim(-0.8, Rout+0.6)
     fig.tight_layout(); fig.savefig(f"{OUT}/fig1_arc_model.png", dpi=150)
     plt.close(fig)
@@ -104,15 +110,14 @@ def fig_derivation():
 
     # equations box
     txt = ("\n".join([
-        r"$arc = radius \times angle$",
+        r"호 길이 $= $ 반지름 $\times$ 중심각",
         r"",
         r"$R\,\theta = s_L$",
         r"$(R + base_L)\,\theta = s_R$",
         r"",
-        r"subtract  $\Rightarrow$  $base_L\,\theta = s_R - s_L$",
+        r"두 식을 빼면 $\Rightarrow$  $base_L\,\theta = s_R - s_L$",
     ]))
     ax.text(Rout+0.4, Rout*0.55, txt, fontsize=13, va="center", ha="left",
-            family="monospace",
             bbox=dict(boxstyle="round", fc="#fbfbe8", ec="#bdbd6a"))
     ax.text(Rout+0.4, 0.7,
             r"$\theta = \frac{s_R - s_L}{base_L}$",
@@ -120,7 +125,7 @@ def fig_derivation():
             bbox=dict(boxstyle="round", fc="white", ec="#7a1f1f", lw=2))
 
     ax.set_aspect("equal"); ax.axis("off")
-    ax.set_title(r"Deriving $\theta$ from the two arc-length equations", fontsize=13)
+    ax.set_title("두 호 길이 식을 연립하여 " r"$\theta$" " 유도", fontsize=13)
     ax.set_xlim(-1.0, Rout+5.2); ax.set_ylim(-0.6, Rout+0.5)
     fig.tight_layout(); fig.savefig(f"{OUT}/fig2_theta_derivation.png", dpi=150)
     plt.close(fig)
@@ -148,7 +153,7 @@ def fig_special():
     robot(ax, 0, 2.2, 90, c=GREEN)
     ax.text(0, -0.5, r"$s_R = s_L \;\Rightarrow\; \theta = 0$", ha="center",
             fontsize=13)
-    ax.set_title("(1) Straight", fontsize=12)
+    ax.set_title("(1) 직진", fontsize=12)
     ax.set_xlim(-1.6, 1.6); ax.set_ylim(-0.9, 2.7)
 
     # (2) spin in place : L=+V, R=-V, center at axle midpoint
@@ -164,9 +169,9 @@ def fig_special():
                  arrowstyle="-|>", mutation_scale=12, color=RED, lw=2))
     ax.add_patch(FancyArrowPatch((0.55, 0.18), (0.55, -0.5),
                  arrowstyle="-|>", mutation_scale=12, color=BLUE, lw=2))
-    ax.text(0, -1.35, r"$L=+V,\; R=-V$" + "\n" + r"center = axle midpoint",
+    ax.text(0, -1.35, r"$L=+V,\; R=-V$" + "\n" + "회전중심 = 차축 중앙",
             ha="center", fontsize=12)
-    ax.set_title("(2) Spin in place", fontsize=12)
+    ax.set_title("(2) 제자리 회전", fontsize=12)
     ax.set_xlim(-1.7, 1.7); ax.set_ylim(-1.9, 1.7)
 
     # (3) pivot on one wheel : R = 0
@@ -178,15 +183,15 @@ def fig_special():
     robot(ax, 0, 0, 90, c="k")
     ex, ey = O[0] + 1.4*np.cos(np.radians(70)), O[1] + 1.4*np.sin(np.radians(70))
     robot(ax, ex, ey, 90+70, c=GREEN)
-    ax.text(-0.7, -0.55, "pivot\n(inner wheel)", ha="center", color=RED,
+    ax.text(-0.7, -0.55, "회전축\n(안쪽 바퀴)", ha="center", color=RED,
             fontsize=10)
     ax.text(0.1, -1.4, r"$R = 0$", ha="center", fontsize=13)
-    ax.set_title("(3) Pivot on one wheel", fontsize=12)
+    ax.set_title("(3) 한쪽 바퀴 축 회전", fontsize=12)
     ax.set_xlim(-1.8, 2.1); ax.set_ylim(-1.9, 2.1)
 
     for ax in axes:
         ax.set_aspect("equal"); ax.axis("off")
-    fig.suptitle("Special cases of differential-drive turning", fontsize=13)
+    fig.suptitle("차동구동 회전의 특수한 경우", fontsize=13)
     fig.tight_layout(); fig.savefig(f"{OUT}/fig3_special_cases.png", dpi=150)
     plt.close(fig)
 
