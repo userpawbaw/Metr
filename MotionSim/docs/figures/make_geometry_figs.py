@@ -4,7 +4,7 @@ labels: math/English (Korean fonts unavailable). Outputs PNGs in this dir.
 """
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.patches import Wedge, FancyArrowPatch, Arc
+from matplotlib.patches import Wedge, FancyArrowPatch, Arc, Polygon
 import matplotlib.font_manager as fm
 import glob, os
 
@@ -132,62 +132,102 @@ def fig_derivation():
 
 
 # ======================================================= Fig 3: special cases
+def _rectpoly(c, along, across, L, W):
+    c = np.asarray(c, float)
+    return np.array([c + s1*L/2*along + s2*W/2*across
+                     for s1, s2 in [(1, 1), (1, -1), (-1, -1), (-1, 1)]])
+
+
+def mouse_sc(ax, center, heading_deg, base=1.1, alpha=1.0, body_c="#d9e6f2",
+             edge="#33536e", wL=RED, wR=BLUE, arrow=True):
+    """마이크로마우스(섀시+양 바퀴+진행화살표). center=차축 중점, heading=진행방향."""
+    h = np.array([np.cos(np.radians(heading_deg)), np.sin(np.radians(heading_deg))])
+    left = np.array([-h[1], h[0]])         # heading 기준 좌측
+    c = np.asarray(center, float)
+    ax.add_patch(Polygon(_rectpoly(c, h, left, 0.85, base*0.95), closed=True,
+                 facecolor=body_c, edgecolor=edge, lw=1.3, alpha=alpha, zorder=5,
+                 joinstyle="round"))
+    wl = c + base/2*left
+    wr = c - base/2*left
+    for wc, col in ((wl, wL), (wr, wR)):
+        ax.add_patch(Polygon(_rectpoly(wc, h, left, 0.5, 0.16), closed=True,
+                     facecolor=col, edgecolor="k", lw=0.9, alpha=alpha, zorder=7))
+    if arrow:
+        ax.add_patch(FancyArrowPatch(c, c + 0.8*h, arrowstyle="-|>",
+                     mutation_scale=13, color="#222", lw=1.6, alpha=alpha, zorder=8))
+    return wl, wr
+
+
 def fig_special():
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.6))
+    fig, axes = plt.subplots(1, 3, figsize=(14.0, 5.0))
+    BASE = 1.1
 
-    def robot(ax, cx, cy, ang, c="k", L=0.9, W=0.55):
-        # draw axle (wheels) perpendicular to heading 'ang'
-        dx, dy = np.cos(np.radians(ang)), np.sin(np.radians(ang))
-        px, py = -dy, dx
-        ax.plot([cx-px*W, cx+px*W], [cy-py*W, cy+py*W], color=c, lw=5,
-                solid_capstyle="round")
-        ax.add_patch(FancyArrowPatch((cx, cy), (cx+dx*L, cy+dy*L),
-                     arrowstyle="-|>", mutation_scale=14, color=c, lw=1.5))
-
-    # (1) straight : s_R = s_L -> theta = 0
+    # ---------------- (1) 직진 : s_R = s_L -> theta = 0 ----------------
     ax = axes[0]
-    for x in (-0.6, 0.6):
-        ax.add_patch(FancyArrowPatch((x, 0), (x, 2.2), arrowstyle="-|>",
-                     mutation_scale=14, color=GRAY, lw=2))
-    robot(ax, 0, 0, 90, c="k")
-    robot(ax, 0, 2.2, 90, c=GREEN)
-    ax.text(0, -0.5, r"$s_R = s_L \;\Rightarrow\; \theta = 0$", ha="center",
+    for x in (-BASE/2, BASE/2):                       # 양 바퀴 직선 궤적(동일 길이)
+        ax.plot([x, x], [0, 2.2], color=GRAY, lw=1.3, ls="--")
+        ax.add_patch(FancyArrowPatch((x, 2.0), (x, 2.25), arrowstyle="-|>",
+                     mutation_scale=12, color=GRAY, lw=1.3))
+    mouse_sc(ax, (0, 0), 90, base=BASE, alpha=0.45)
+    mouse_sc(ax, (0, 2.2), 90, base=BASE, body_c="#dff0e4", edge=GREEN)
+    ax.text(0, -0.7, r"$s_R = s_L \;\Rightarrow\; \theta = 0$", ha="center",
             fontsize=13)
     ax.set_title("(1) 직진", fontsize=12)
-    ax.set_xlim(-1.6, 1.6); ax.set_ylim(-0.9, 2.7)
+    ax.set_xlim(-1.7, 1.7); ax.set_ylim(-1.1, 3.0)
 
-    # (2) spin in place : L=+V, R=-V, center at axle midpoint
+    # ---------------- (2) 제자리 회전 : 시계방향 210도 ----------------
     ax = axes[1]
-    O = (0, 0)
-    ax.add_patch(Arc(O, 2.0, 2.0, theta1=-90, theta2=120, color=GRAY, lw=1.2,
-                     ls="--"))
-    robot(ax, 0, 0, 90, c="k")
-    robot(ax, 0, 0, 150, c=GREEN)
-    ax.plot(0, 0, "ko", ms=6)
-    # opposite wheel arrows
-    ax.add_patch(FancyArrowPatch((-0.55, -0.18), (-0.55, 0.5),
-                 arrowstyle="-|>", mutation_scale=12, color=RED, lw=2))
-    ax.add_patch(FancyArrowPatch((0.55, 0.18), (0.55, -0.5),
-                 arrowstyle="-|>", mutation_scale=12, color=BLUE, lw=2))
-    ax.text(0, -1.35, r"$L=+V,\; R=-V$" + "\n" + "회전중심 = 차축 중앙",
-            ha="center", fontsize=12)
+    O = np.array([0.0, 0.0])
+    rr = 1.45
+    # 궤적 점선: 12시(0도)에서 시계방향 210도(7시)까지.  clock->xy: x=rr sin, y=rr cos
+    phi = np.radians(np.linspace(0, 210, 160))
+    ax.plot(rr*np.sin(phi), rr*np.cos(phi), color=GRAY, lw=1.3, ls="--")
+    ax.add_patch(FancyArrowPatch((rr*np.sin(phi[-2]), rr*np.cos(phi[-2])),
+                 (rr*np.sin(phi[-1]), rr*np.cos(phi[-1])), arrowstyle="-|>",
+                 mutation_scale=14, color=GRAY, lw=1.4))      # 시계방향 표시
+    # 시작(검정, 12시) / 최종(초록, 7시=heading -120deg)
+    mouse_sc(ax, O, 90, base=BASE, alpha=0.5)
+    mouse_sc(ax, O, 90 - 210, base=BASE, body_c="#dff0e4", edge=GREEN)
+    ax.plot(*O, "ko", ms=5, zorder=9)
+    # 바퀴 속도 방향(L=+V 전진, R=-V 후진) -> 시계방향
+    ax.add_patch(FancyArrowPatch((-BASE/2, -0.18), (-BASE/2, 0.55),
+                 arrowstyle="-|>", mutation_scale=12, color=RED, lw=2, zorder=9))
+    ax.add_patch(FancyArrowPatch((BASE/2, 0.18), (BASE/2, -0.55),
+                 arrowstyle="-|>", mutation_scale=12, color=BLUE, lw=2, zorder=9))
+    ax.text(0, -1.95, r"$L=+V,\; R=-V$" + "\n" + "회전중심 = 차축 중앙 (시계방향)",
+            ha="center", fontsize=11)
     ax.set_title("(2) 제자리 회전", fontsize=12)
-    ax.set_xlim(-1.7, 1.7); ax.set_ylim(-1.9, 1.7)
+    ax.set_xlim(-2.0, 2.0); ax.set_ylim(-2.5, 2.0)
 
-    # (3) pivot on one wheel : R = 0
+    # ---------------- (3) 한쪽 바퀴 축 회전 : R = 0 ----------------
     ax = axes[2]
-    O = (-0.7, 0)                      # inner (left) wheel = pivot
-    ax.plot(*O, "o", color=RED, ms=11)
-    ax.add_patch(Arc(O, 2*1.4, 2*1.4, theta1=0, theta2=70, color=GRAY, lw=1.2,
-                     ls="--"))
-    robot(ax, 0, 0, 90, c="k")
-    ex, ey = O[0] + 1.4*np.cos(np.radians(70)), O[1] + 1.4*np.sin(np.radians(70))
-    robot(ax, ex, ey, 90+70, c=GREEN)
-    ax.text(-0.7, -0.55, "회전축\n(안쪽 바퀴)", ha="center", color=RED,
-            fontsize=10)
-    ax.text(0.1, -1.4, r"$R = 0$", ha="center", fontsize=13)
+    P = np.array([-0.55, -0.35])           # 안쪽(왼쪽) 바퀴 = 회전축 (고정)
+    Bp = 1.6                                # 이 패널 바퀴 간격(= 오른쪽바퀴 회전반경)
+    alpha_pivot = 78.0                      # 축 기준 회전각
+
+    def mouse_pivot(headeg, **kw):
+        # 왼쪽 바퀴가 P에 오도록 center 배치.  left = (-sin,cos)*... ; center = P - base/2*left
+        h = np.array([np.cos(np.radians(headeg)), np.sin(np.radians(headeg))])
+        left = np.array([-h[1], h[0]])
+        center = P + Bp/2*(-left)          # = P + base/2*right  (왼쪽바퀴=center+base/2*left=P)
+        return mouse_sc(ax, center, headeg, base=Bp, **kw)
+
+    # 점선 = 오른쪽 바퀴 궤적: 반경 Bp, 중심 P, 0도(오른쪽,3시)에서 alpha까지
+    th = np.radians(np.linspace(0, alpha_pivot, 120))
+    ax.plot(P[0] + Bp*np.cos(th), P[1] + Bp*np.sin(th), color=GRAY, lw=1.3, ls="--")
+    ax.add_patch(FancyArrowPatch(
+        (P[0]+Bp*np.cos(th[-2]), P[1]+Bp*np.sin(th[-2])),
+        (P[0]+Bp*np.cos(th[-1]), P[1]+Bp*np.sin(th[-1])),
+        arrowstyle="-|>", mutation_scale=14, color=GRAY, lw=1.4))
+    # 시작(검정, heading 90 = 차축이 +x) / 최종(초록, heading 90+alpha)
+    mouse_pivot(90, alpha=0.5)
+    mouse_pivot(90 + alpha_pivot, body_c="#dff0e4", edge=GREEN)
+    ax.plot(*P, "o", color=RED, ms=12, zorder=10)        # 고정 회전축(겹친 왼쪽바퀴)
+    ax.annotate("회전축\n(안쪽 바퀴, 고정)", P, textcoords="offset points",
+                xytext=(-6, -34), ha="center", color=RED, fontsize=10)
+    ax.text(1.1, -1.7, r"$R = 0$", ha="center", fontsize=13)
     ax.set_title("(3) 한쪽 바퀴 축 회전", fontsize=12)
-    ax.set_xlim(-1.8, 2.1); ax.set_ylim(-1.9, 2.1)
+    ax.set_xlim(-1.8, 2.4); ax.set_ylim(-2.2, 2.2)
 
     for ax in axes:
         ax.set_aspect("equal"); ax.axis("off")
